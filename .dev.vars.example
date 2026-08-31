@@ -3,3 +3,6 @@
 
 INGEST_TOKEN=dev-ingest-token-change-me
 OPERATOR_TOKEN=dev-operator-token-change-me
+AGENT_TOKEN=dev-agent-token-change-me
+# XAI_API_KEY=xai-...
+# OPERATOR_NOTIFY_EMAIL=you@example.com

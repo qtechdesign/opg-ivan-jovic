@@ -6,10 +6,14 @@ declare namespace Cloudflare {
 		SERVICE_NAME: "polje";
 		INGEST_TOKEN: string;
 		OPERATOR_TOKEN: string;
+		AGENT_TOKEN: string;
+		XAI_API_KEY?: string;
+		OPERATOR_NOTIFY_EMAIL?: string;
 		FARM: DurableObjectNamespace<import("./apps/api/src/index").FarmRuntime>;
 		MEDIA: R2Bucket;
 		DB: D1Database;
 		INGEST: Queue;
+		EMAIL: SendEmail;
 	}
 }
 interface Env extends Cloudflare.Env {}
@@ -17,7 +21,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SERVICE_NAME" | "INGEST_TOKEN" | "OPERATOR_TOKEN">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SERVICE_NAME" | "INGEST_TOKEN" | "OPERATOR_TOKEN" | "AGENT_TOKEN" | "XAI_API_KEY" | "OPERATOR_NOTIFY_EMAIL">> {}
 }
 
 // Begin runtime types

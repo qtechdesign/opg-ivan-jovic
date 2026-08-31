@@ -1,0 +1,22 @@
+{
+  "slug": "demo-opg",
+  "name": "Demo OPG",
+  "country": "HR",
+  "timezone": "Europe/Zagreb",
+  "story": "Generic placeholder farm for Polje forks. Copy this file, rename the slug, and fill plots from a walk of your land. Do not invent hectares or GPS.",
+  "plots": [
+    { "name": "Yard", "use_type": "yard" },
+    { "name": "Hay field", "use_type": "hay" },
+    { "name": "Garden", "use_type": "garden" }
+  ],
+  "zones": [
+    { "name": "Garden drip", "kind": "drip" }
+  ],
+  "iot": {
+    "mqtt": "mqtt.farm.lan:1883",
+    "edge": "edge.farm.lan",
+    "nvr": "nvr.farm.lan"
+  },
+  "local_only": true,
+  "sql": "seed/demo-opg.sql"
+}

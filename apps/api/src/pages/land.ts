@@ -1,5 +1,14 @@
 import type { Context } from "hono";
-import { CHASSIS_CSS, escapeHtml } from "../lib/html";
+import {
+  CHASSIS_CSS,
+  escapeHtml,
+  farmBrand,
+  farmPath,
+  FARM_SLUG_JS,
+  siteNav,
+} from "../lib/html";
+import { farmFromRequest } from "../lib/farm";
+import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -25,9 +34,7 @@ type MediaRow = {
 };
 
 export async function renderHome(c: Context<AppEnv>) {
-  const farm = await c.env.DB.prepare(
-    `SELECT id, slug, name, timezone FROM farms WHERE slug = 'ivan-jovic'`
-  ).first<{ id: string; slug: string; name: string; timezone: string }>();
+  const { farm, defaultSlug } = await farmFromRequest(c);
 
   let plotsHtml = "<li class=\"dim\">Nema parcela — pokreni seed.</li>";
   if (farm) {
@@ -57,85 +64,168 @@ export async function renderHome(c: Context<AppEnv>) {
 
   let yardStill = "";
   if (farm) {
-    const yardSnap = await c.env.DB.prepare(
-      `SELECT camera_id FROM camera_snapshots WHERE camera_id = 'cam-yard' AND farm_id = ?`
+    const snap = await c.env.DB.prepare(
+      `SELECT s.camera_id, COALESCE(d.name, s.camera_id) AS name
+       FROM camera_snapshots s
+       LEFT JOIN devices d ON d.id = s.camera_id
+       WHERE s.farm_id = ?
+       ORDER BY s.captured_at DESC LIMIT 1`
     )
       .bind(farm.id)
-      .first();
-    if (yardSnap) {
+      .first<{ camera_id: string; name: string }>();
+    if (snap) {
+      const eyesHref = farmPath("/eyes", farm.slug, defaultSlug);
       yardStill = `<section class="panel">
-      <h2>Dvorište · snimka</h2>
-      <a class="thumbs" href="/eyes" style="display:block;max-width:360px">
-        <img src="/v1/cameras/cam-yard/latest" alt="Yard still" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border:1px solid var(--hairline);border-radius:4px" />
+      <h2>${escapeHtml(snap.name)} · snimka</h2>
+      <a class="thumbs" href="${eyesHref}" style="display:block;max-width:360px">
+        <img src="/v1/cameras/${escapeHtml(snap.camera_id)}/latest" alt="${escapeHtml(snap.name)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border:1px solid var(--hairline);border-radius:4px" />
       </a>
     </section>`;
     }
   }
 
+  const farmSlug = farm?.slug ?? "";
+  const story =
+    farm && farm.slug === defaultSlug
+      ? "Kuća iz 1923. · hay, vrt, obitelj · Hrvatska"
+      : "Predložak za fork · Europe/Zagreb";
+
   return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear">
+<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farmSlug)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>POLJE · ${escapeHtml(title)}</title>
   <style>${CHASSIS_CSS}
-  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .metric { border: 1px solid var(--hairline); border-radius: 4px; padding: 16px; background: color-mix(in oklab, var(--void-soft) 82%, transparent); }
   .metric .n { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 28px; line-height: 1; }
   .metric .u { font-size: 12px; letter-spacing: 0.08em; color: var(--spectral-dim); text-transform: uppercase; margin-left: 6px; }
   .metric .l { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); margin-top: 8px; }
   .pip.down::before { background: var(--alarm); }
   @media (max-width: 640px) { .metrics { grid-template-columns: 1fr; } }
+  .grok-dock {
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid var(--hairline);
+    background: color-mix(in oklab, var(--void) 92%, transparent);
+    padding: 10px 16px 14px;
+  }
+  .grok-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .grok-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--spectral-dim);
+  }
+  .grok-brief {
+    flex: 1 1 160px;
+    font-size: 12px;
+    font-family: ui-monospace, "IBM Plex Mono", monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .grok-bar input[type="password"],
+  .grok-bar input[type="text"] {
+    width: auto;
+    flex: 1 1 140px;
+    min-width: 120px;
+    font-family: ui-monospace, "IBM Plex Mono", monospace;
+    font-size: 13px;
+    height: 36px;
+    padding: 0 10px;
+  }
+  .grok-bar button { height: 36px; }
+  .grok-out {
+    max-width: 960px;
+    margin: 10px auto 0;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    background: var(--void-soft);
+    font-family: ui-monospace, "IBM Plex Mono", monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    max-height: 220px;
+    overflow: auto;
+  }
   </style>
 </head>
 <body>
   <header>
-    <span class="brand">Polje · OPG Ivan Jović</span>
-    <nav>
-      <a href="/">Pregled</a>
-      <a href="/land">Zemlja</a>
-      <a href="/eyes">Oči</a>
-    </nav>
+    ${farmBrand(title, farmSlug, defaultSlug)}
+    ${siteNav(farmSlug || defaultSlug, defaultSlug)}
     <span class="pip ${statusClass}" id="starlink-pip">STARLINK · —</span>
   </header>
   <main>
     <h1>${escapeHtml(title)}</h1>
-    <p class="sub">Konzola farme · M3 oči · Europa/Zagreb</p>
+    <p class="sub">${story}</p>
     <div class="metrics">
       <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">Temp</div></div>
+      <div class="metric"><div><span class="n" id="m-kw">—</span><span class="u">kW</span></div><div class="l">Solar</div></div>
       <div class="metric"><div><span class="n" id="m-soil">—</span><span class="u">moist</span></div><div class="l">Tlo</div></div>
       <div class="metric"><div><span class="n" id="m-edge">—</span><span class="u">seen</span></div><div class="l">Edge</div></div>
     </div>
+    <section class="panel">
+      <h2>Voda</h2>
+      <ul>
+        <li class="row"><span class="name" id="water-lock">Kišni lockout · —</span><span class="meta"><a href="/water">otvori</a></span></li>
+        <li class="row"><span class="name" id="water-last">Zadnje kap · —</span><span class="meta" id="water-state">—</span></li>
+      </ul>
+    </section>
     <section class="panel">
       <h2>Parcele</h2>
       <ul>${plotsHtml}</ul>
     </section>
     ${yardStill}
     <p class="actions">
-      <a class="btn-ghost" href="/land">Zemlja · ledger</a>
-      <a class="btn-ghost" href="/eyes">Oči · kamere</a>
-      <a class="btn-ghost" href="/v1/overview?farm=ivan-jovic">JSON · overview</a>
-      <a class="btn-ghost" href="/v1/local/health?farm=ivan-jovic">Local health</a>
-      <a class="btn-ghost" href="/v1/health">Health</a>
+      <a class="btn-ghost" href="${farmPath("/klima", farmSlug, defaultSlug)}">Klima</a>
+      <a class="btn-ghost" href="${farmPath("/water", farmSlug, defaultSlug)}">Voda</a>
+      <a class="btn-ghost" href="${farmPath("/eyes", farmSlug, defaultSlug)}">Pogled na farme</a>
+      <a class="btn-ghost" href="${farmPath("/land", farmSlug, defaultSlug)}">Zemlja</a>
     </p>
     <footer>Polje is the field. The field was here first.</footer>
   </main>
+  <aside id="grok-dock" class="grok-dock" aria-label="Grok">
+    <div class="grok-bar">
+      <span class="grok-label">GROK</span>
+      <span id="grok-brief" class="grok-brief dim"></span>
+      <input id="grok-input" type="text" autocomplete="off" placeholder="Pitaj farmu…" />
+      <button type="button" class="btn-ghost" id="grok-send">Šalji</button>
+    </div>
+    <pre id="grok-out" class="grok-out" hidden></pre>
+  </aside>
   <script>
+    ${FARM_SLUG_JS}
     const pip = document.getElementById("starlink-pip");
     const elTemp = document.getElementById("m-temp");
+    const elKw = document.getElementById("m-kw");
     const elSoil = document.getElementById("m-soil");
     const elEdge = document.getElementById("m-edge");
 
-    function applyLive(live) {
+    function applyLive(live, energy) {
       if (!live) return;
       const star = (live.starlink || "unknown").toUpperCase();
       pip.textContent = "STARLINK · " + star;
       pip.className = "pip " + (live.starlink === "up" ? "ok" : live.starlink === "down" ? "down" : "warn");
       const metrics = live.metrics || {};
-      const temp = metrics["temp-yard-1:temp_c"] || Object.values(metrics).find(m => m.metric === "temp_c");
+      const temp = metrics["fps-sn-1:temp_c"] || metrics["temp-yard-1:temp_c"] || Object.values(metrics).find(m => m.metric === "temp_c");
       const soil = metrics["soil-n-1:moisture"] || Object.values(metrics).find(m => m.metric === "moisture");
+      const watts = metrics["inv-1:w"] || Object.values(metrics).find(m => m.metric === "w");
       if (temp) elTemp.textContent = Number(temp.value).toFixed(1);
       if (soil) elSoil.textContent = Number(soil.value).toFixed(2);
+      if (energy && energy.solar_w != null) {
+        elKw.textContent = (Number(energy.solar_w) / 1000).toFixed(2);
+      } else if (watts) {
+        elKw.textContent = (Number(watts.value) / 1000).toFixed(2);
+      }
       elEdge.textContent = live.edge_seen_at
         ? new Date(live.edge_seen_at).toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
         : "—";
@@ -143,9 +233,23 @@ export async function renderHome(c: Context<AppEnv>) {
 
     async function refresh() {
       try {
-        const res = await fetch("/v1/overview?farm=ivan-jovic");
+        const res = await fetch("/v1/overview?farm=" + encodeURIComponent(FARM));
         const data = await res.json();
-        applyLive(data.live);
+        applyLive(data.live, data.energy);
+        const irr = data.irrigation;
+        const elLock = document.getElementById("water-lock");
+        const elLast = document.getElementById("water-last");
+        const elState = document.getElementById("water-state");
+        if (irr && elLock) {
+          elLock.textContent = "Kišni lockout · " + (irr.rain_lockout ? "ON" : "OFF");
+          const drip = (irr.zones || []).find(z => z.kind === "drip");
+          if (elState && drip) elState.textContent = drip.state || "idle";
+          if (elLast && irr.last_drip) {
+            elLast.textContent = "Zadnje kap · " + new Date(irr.last_drip.started_at).toLocaleString("hr-HR");
+          } else if (elLast) {
+            elLast.textContent = "Zadnje kap · —";
+          }
+        }
       } catch (e) { console.warn(e); }
     }
 
@@ -154,7 +258,7 @@ export async function renderHome(c: Context<AppEnv>) {
 
     try {
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(proto + "//" + location.host + "/v1/live?farm=ivan-jovic");
+      const ws = new WebSocket(proto + "//" + location.host + "/v1/live?farm=" + encodeURIComponent(FARM));
       ws.onmessage = (ev) => {
         if (ev.data === "pong") return;
         try {
@@ -164,15 +268,63 @@ export async function renderHome(c: Context<AppEnv>) {
       };
       setInterval(() => { if (ws.readyState === 1) ws.send("ping"); }, 25000);
     } catch (e) { console.warn("ws", e); }
+
+    (function grokDock() {
+      const inp = document.getElementById("grok-input");
+      const out = document.getElementById("grok-out");
+      const brief = document.getElementById("grok-brief");
+      const send = document.getElementById("grok-send");
+
+      fetch("/v1/grok/briefing/today?farm=" + encodeURIComponent(FARM))
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.briefing && d.briefing.body_hr) {
+            brief.textContent = d.briefing.body_hr.slice(0, 120) + (d.briefing.body_hr.length > 120 ? "…" : "");
+            brief.title = d.briefing.body_hr + "\\n\\n" + (d.briefing.body_en || "");
+          } else {
+            brief.textContent = "nema briefinga danas";
+          }
+        })
+        .catch(() => { brief.textContent = ""; });
+
+      async function ask() {
+        const message = (inp.value || "").trim();
+        if (!message) return;
+        out.hidden = false;
+        out.textContent = "…";
+        send.disabled = true;
+        try {
+          const res = await fetch("/v1/grok/chat", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ farm_slug: FARM, message }),
+          });
+          const data = await res.json();
+          if (res.status === 401) {
+            out.textContent = "Prijavi se na Zemlja, pa pitaj.";
+          } else if (!res.ok) {
+            out.textContent = data.error || ("HTTP " + res.status);
+          } else {
+            out.textContent = data.reply || "(prazno)";
+          }
+        } catch (e) {
+          out.textContent = String(e);
+        }
+        send.disabled = false;
+      }
+      send.addEventListener("click", ask);
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") ask();
+      });
+    })();
   </script>
 </body>
 </html>`);
 }
 
 export async function renderLand(c: Context<AppEnv>) {
-  const farm = await c.env.DB.prepare(
-    `SELECT id, slug, name FROM farms WHERE slug = 'ivan-jovic'`
-  ).first<{ id: string; slug: string; name: string }>();
+  const { farm, defaultSlug } = await farmFromRequest(c);
 
   if (!farm) {
     return c.html(
@@ -271,7 +423,7 @@ export async function renderLand(c: Context<AppEnv>) {
       : `<p class="dim">Još nema fotografija rasta.</p>`;
 
   return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear">
+<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -280,29 +432,16 @@ export async function renderLand(c: Context<AppEnv>) {
 </head>
 <body>
   <header>
-    <span class="brand">Polje · OPG Ivan Jović</span>
-    <nav>
-      <a href="/">Pregled</a>
-      <a href="/land">Zemlja</a>
-      <a href="/eyes">Oči</a>
-    </nav>
+    ${farmBrand(farm.name, farm.slug, defaultSlug)}
+    ${siteNav(farm.slug, defaultSlug)}
     <span class="pip ok">LAND</span>
   </header>
   <main>
     <h1>Zemlja</h1>
     <p class="sub">Ledger parcela i sađenja · ${escapeHtml(farm.name)}</p>
 
-    <section class="panel">
-      <h2>Operator token</h2>
-      <p class="dim">Samo lokalno u pregledniku (sessionStorage). Ne dijeliti; Cloudflare secret.</p>
-      <label for="token">Operator token</label>
-      <input id="token" type="password" autocomplete="off" placeholder="Bearer secret" />
-      <div class="actions">
-        <button type="button" class="btn-ghost" id="save-token">Spremi u session</button>
-        <button type="button" class="btn-ghost" id="clear-token">Obriši</button>
-      </div>
-      <div class="msg" id="token-msg"></div>
-    </section>
+    ${OPERATOR_GATE_HTML}
+
 
     <section class="panel">
       <h2>Parcele i sađenja</h2>
@@ -421,16 +560,11 @@ export async function renderLand(c: Context<AppEnv>) {
     <footer>Polje is the field. The field was here first.</footer>
   </main>
   <script>
-    const TOKEN_KEY = "polje_operator_token";
-    const tokenInput = document.getElementById("token");
-    const tokenMsg = document.getElementById("token-msg");
-    tokenInput.value = sessionStorage.getItem(TOKEN_KEY) || "";
+    ${FARM_SLUG_JS}
+    ${OPERATOR_SESSION_JS}
 
-    function authHeaders(json) {
-      const t = sessionStorage.getItem(TOKEN_KEY) || "";
-      const h = { Authorization: "Bearer " + t };
-      if (json) h["Content-Type"] = "application/json";
-      return h;
+    function jsonHeaders() {
+      return { "Content-Type": "application/json" };
     }
 
     function setMsg(el, text, err) {
@@ -438,22 +572,13 @@ export async function renderLand(c: Context<AppEnv>) {
       el.className = "msg" + (err ? " err" : "");
     }
 
-    document.getElementById("save-token").onclick = () => {
-      sessionStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
-      setMsg(tokenMsg, "Spremljeno u sessionStorage.");
-    };
-    document.getElementById("clear-token").onclick = () => {
-      sessionStorage.removeItem(TOKEN_KEY);
-      tokenInput.value = "";
-      setMsg(tokenMsg, "Obrisano.");
-    };
 
     document.getElementById("form-plot").onsubmit = async (e) => {
       e.preventDefault();
       const msg = document.getElementById("plot-msg");
       const ha = document.getElementById("plot-ha").value;
       const body = {
-        farm_slug: "ivan-jovic",
+        farm_slug: FARM,
         name: document.getElementById("plot-name").value.trim(),
         use_type: document.getElementById("plot-use").value,
         notes: document.getElementById("plot-notes").value.trim() || null,
@@ -462,7 +587,8 @@ export async function renderLand(c: Context<AppEnv>) {
       try {
         const res = await fetch("/v1/plots", {
           method: "POST",
-          headers: authHeaders(true),
+          credentials: "include",
+          headers: jsonHeaders(),
           body: JSON.stringify(body)
         });
         const data = await res.json();
@@ -487,7 +613,8 @@ export async function renderLand(c: Context<AppEnv>) {
       try {
         const res = await fetch("/v1/plantings", {
           method: "POST",
-          headers: authHeaders(true),
+          credentials: "include",
+          headers: jsonHeaders(),
           body: JSON.stringify(body)
         });
         const data = await res.json();
@@ -511,7 +638,8 @@ export async function renderLand(c: Context<AppEnv>) {
       try {
         const res = await fetch("/v1/plantings/" + id, {
           method: "PATCH",
-          headers: authHeaders(true),
+          credentials: "include",
+          headers: jsonHeaders(),
           body: JSON.stringify(body)
         });
         const data = await res.json();
@@ -530,7 +658,7 @@ export async function renderLand(c: Context<AppEnv>) {
       const file = document.getElementById("media-file").files[0];
       if (!file) return setMsg(msg, "Odaberi datoteku", true);
       fd.append("file", file);
-      fd.append("farm_slug", "ivan-jovic");
+      fd.append("farm_slug", FARM);
       const plot = document.getElementById("media-plot").value;
       const planting = document.getElementById("media-planting").value;
       const caption = document.getElementById("media-caption").value.trim();
@@ -540,7 +668,7 @@ export async function renderLand(c: Context<AppEnv>) {
       try {
         const res = await fetch("/v1/media", {
           method: "POST",
-          headers: { Authorization: "Bearer " + (sessionStorage.getItem(TOKEN_KEY) || "") },
+          credentials: "include",
           body: fd
         });
         const data = await res.json();
@@ -551,6 +679,8 @@ export async function renderLand(c: Context<AppEnv>) {
         setMsg(msg, String(err.message || err), true);
       }
     };
+
+    opRefreshGate();
   </script>
 </body>
 </html>`);

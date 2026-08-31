@@ -10,6 +10,7 @@ export default defineWorkersConfig({
             SERVICE_NAME: "polje",
             OPERATOR_TOKEN: "test-operator-token",
             INGEST_TOKEN: "test-ingest-token",
+            AGENT_TOKEN: "test-agent-token",
           },
         },
       },

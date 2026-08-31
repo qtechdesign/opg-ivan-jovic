@@ -7,10 +7,14 @@ import {
   type Planting,
   type Plot,
 } from "@polje/schema";
-import { requireIngest, requireOperator, requireOperatorOrIngest } from "../lib/auth";
+import { requireIngest, requireOperator, requireOperatorOrIngest, isOperator, mintOperatorCookieValue, setOperatorCookieHeader, clearOperatorCookieHeader, requestIsHttps, timingSafeEqualString } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
-import { DEFAULT_FARM_SLUG, getFarmBySlug } from "../lib/farm";
+import { defaultFarmSlug, farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
+import { irrigationOverview } from "./irrigation";
+import { climateOverview } from "../lib/climate";
+import { energyOverview } from "../lib/energy";
+import type { FarmLiveState } from "../do/farm-runtime";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -25,6 +29,53 @@ api.get("/v1/health", (c) => {
     service: c.env.SERVICE_NAME || "polje",
     time: new Date().toISOString(),
   });
+});
+
+api.get("/v1/session", async (c) => {
+  return c.json({ operator: await isOperator(c) });
+});
+
+api.post("/v1/session", async (c) => {
+  const expected = c.env.OPERATOR_TOKEN;
+  if (!expected) {
+    return c.json({ error: "operator_token_not_configured" }, 500);
+  }
+  let body: { password?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const password = String(body.password || "");
+  if (!(await timingSafeEqualString(password, expected))) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const value = await mintOperatorCookieValue(expected);
+  c.header("Set-Cookie", setOperatorCookieHeader(value, requestIsHttps(c)));
+
+  const farm = await getFarmBySlug(c.env.DB, defaultFarmSlug(c.env));
+  if (farm) {
+    await writeAudit(c.env.DB, {
+      farm_id: farm.id,
+      actor: "user:operator",
+      action: "session.login",
+      entity: "session",
+      after: { via: "cookie" },
+    });
+  }
+  return c.json({ ok: true, operator: true });
+});
+
+api.delete("/v1/session", (c) => {
+  c.header("Set-Cookie", clearOperatorCookieHeader(requestIsHttps(c)));
+  return c.json({ ok: true, operator: false });
+});
+
+api.get("/v1/farms", async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT slug, name, timezone FROM farms ORDER BY slug`
+  ).all<{ slug: string; name: string; timezone: string }>();
+  return c.json({ farms: results ?? [] });
 });
 
 api.get("/v1/farms/:slug", async (c) => {
@@ -45,7 +96,7 @@ api.get("/v1/farms/:slug", async (c) => {
 });
 
 api.get("/v1/plots", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -118,7 +169,7 @@ api.post("/v1/plots", async (c) => {
 });
 
 api.get("/v1/plantings", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -288,6 +339,57 @@ api.patch("/v1/plantings/:id", async (c) => {
   return c.json(next);
 });
 
+api.get("/v1/devices", async (c) => {
+  const slug = farmSlugFromQuery(c);
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, farm_id, kind, driver, name, zone, protocol, last_seen
+     FROM devices WHERE farm_id = ? ORDER BY name`
+  )
+    .bind(farm.id)
+    .all();
+
+  return c.json({ farm_id: farm.id, slug: farm.slug, devices: results ?? [] });
+});
+
+api.get("/v1/devices/:id/readings", async (c) => {
+  const id = c.req.param("id");
+  const device = await c.env.DB.prepare(
+    `SELECT id, farm_id FROM devices WHERE id = ?`
+  )
+    .bind(id)
+    .first<{ id: string; farm_id: string }>();
+  if (!device) {
+    return c.json({ error: "device_not_found" }, 404);
+  }
+
+  const metric = c.req.query("metric");
+  const limit = Math.min(
+    200,
+    Math.max(1, Number(c.req.query("limit") || "50") || 50)
+  );
+
+  let sql = `SELECT id, device_id, metric, value, ts FROM readings WHERE device_id = ?`;
+  const binds: (string | number)[] = [id];
+  if (metric) {
+    sql += ` AND metric = ?`;
+    binds.push(metric);
+  }
+  sql += ` ORDER BY ts DESC LIMIT ?`;
+  binds.push(limit);
+
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  return c.json({
+    device_id: id,
+    farm_id: device.farm_id,
+    readings: results ?? [],
+  });
+});
+
 api.post("/v1/media", async (c) => {
   const denied = await requireOperator(c);
   if (denied) return denied;
@@ -315,7 +417,7 @@ api.post("/v1/media", async (c) => {
     return c.json({ error: "file_too_large", max_bytes: MAX_BYTES }, 400);
   }
 
-  const slug = String(form.get("farm_slug") || DEFAULT_FARM_SLUG);
+  const slug = String(form.get("farm_slug") || defaultFarmSlug(c.env));
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -414,7 +516,7 @@ api.post("/v1/media", async (c) => {
 });
 
 api.get("/v1/media", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -472,7 +574,7 @@ api.get("/v1/audit", async (c) => {
   const denied = await requireOperator(c);
   if (denied) return denied;
 
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -536,7 +638,7 @@ api.post("/v1/ingest", async (c) => {
 });
 
 api.get("/v1/overview", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -554,6 +656,36 @@ api.get("/v1/overview", async (c) => {
     .bind(farm.id)
     .all();
 
+  let irrigation = null;
+  try {
+    irrigation = await irrigationOverview(c.env.DB, farm.id);
+  } catch {
+    irrigation = null;
+  }
+
+  const liveState = live as FarmLiveState;
+  const metrics = liveState.metrics ?? {};
+
+  let climate = null;
+  try {
+    climate = await climateOverview(c.env.DB, farm.id, metrics);
+  } catch {
+    climate = null;
+  }
+
+  let energy = null;
+  try {
+    energy = await energyOverview(
+      c.env.DB,
+      farm.id,
+      farm.slug,
+      farm.timezone,
+      metrics
+    );
+  } catch {
+    energy = null;
+  }
+
   return c.json({
     farm: {
       id: farm.id,
@@ -563,11 +695,14 @@ api.get("/v1/overview", async (c) => {
     },
     plots: plots ?? [],
     live,
+    irrigation,
+    climate,
+    energy,
   });
 });
 
 api.get("/v1/local/health", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -584,7 +719,7 @@ api.get("/v1/local/health", async (c) => {
 });
 
 api.get("/v1/live", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const upgrade = c.req.header("Upgrade");
   if (upgrade !== "websocket") {
     return c.json({ error: "expected_websocket", hint: "Upgrade: websocket" }, 426);
@@ -599,7 +734,7 @@ api.get("/v1/live", async (c) => {
 const SNAPSHOT_MAX = 2 * 1024 * 1024;
 
 api.get("/v1/cameras", async (c) => {
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -725,7 +860,7 @@ api.get("/v1/commands", async (c) => {
   const denied = await requireOperatorOrIngest(c);
   if (denied) return denied;
 
-  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
@@ -789,6 +924,18 @@ api.patch("/v1/commands/:id", async (c) => {
     .bind(status, id)
     .run();
 
+  if (row.action === "valve.open") {
+    const runStatus =
+      status === "acked" ? "done" : status === "failed" ? "failed" : "cancelled";
+    await c.env.DB.prepare(
+      `UPDATE irrigation_runs
+       SET status = ?, ended_at = COALESCE(ended_at, ?)
+       WHERE command_id = ?`
+    )
+      .bind(runStatus, new Date().toISOString(), id)
+      .run();
+  }
+
   await writeAudit(c.env.DB, {
     farm_id: row.farm_id,
     actor: "edge",
@@ -836,7 +983,7 @@ api.post("/v1/ingest/media", async (c) => {
 
   const sourceRaw = String(form.get("source") || "placeholder");
   const source = sourceRaw === "rtsp" ? "rtsp" : "placeholder";
-  const slug = String(form.get("farm_slug") || DEFAULT_FARM_SLUG);
+  const slug = String(form.get("farm_slug") || defaultFarmSlug(c.env));
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);

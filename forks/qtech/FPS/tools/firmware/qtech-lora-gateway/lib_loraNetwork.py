@@ -190,7 +190,15 @@ def updateValvesStatus(mess, LORA_Mess_len):
         print('temp2: ' , temp2)
         print('battery: ' , battery)
         data = {'on': valve_stt, 'prA': pressure_Air, 'prW': pressure_Water, 'tp1': temp1, 'tp2': temp2, 'bat': battery}    
-        firebaseFunction.updateValveStatus(fileFunction.dataList[deviceIndex].deviceID, valve_stt, data)
+        try:
+            firebaseFunction.updateValveStatus(fileFunction.dataList[deviceIndex].deviceID, valve_stt, data)
+        except Exception as e:
+            print('firebase updateValveStatus skip:', e)
+        try:
+            import lib_cloud_polje as poljeFunction
+            poljeFunction.publish_valve(fileFunction.dataList[deviceIndex].deviceID, valve_stt, data)
+        except Exception as e:
+            print('polje publish_valve skip:', e)
 
 def updateSensorNode(mess, LORA_Mess_len):  
     try:
@@ -229,7 +237,15 @@ def updateSensorNode(mess, LORA_Mess_len):
             print('temp2: ' , temp2)
             print('battery: ' , battery)
             data = {'wsp': wind_speed, 'wdr': wind_direct, 'prA': pressure_Air, 'prW': pressure_Water, 'soi': soil_mois, 'hum': humi, 'tp1': temp1, 'tp2': temp2, 'bat': battery}
-            firebaseFunction.updateData(fileFunction.dataList[deviceIndex].deviceID, data)
+            try:
+                firebaseFunction.updateData(fileFunction.dataList[deviceIndex].deviceID, data)
+            except Exception as e:
+                print('firebase updateData skip:', e)
+            try:
+                import lib_cloud_polje as poljeFunction
+                poljeFunction.publish_sensor(fileFunction.dataList[deviceIndex].deviceID, data)
+            except Exception as e:
+                print('polje publish_sensor skip:', e)
     except:
         print("BAD REQUEST: updateSensorNode")
   

@@ -1,0 +1,8 @@
+Frost Protection System (FPS)
+Copyright (c) Qtech Design
+
+This directory is a living fork of https://github.com/qtechdesign/qtech (MIT).
+Polje bindings (MQTT / Polje ingest) are added alongside the original
+Firebase gateway path; firmware and hardware layouts are kept.
+
+See LICENSE in this directory and the root LICENSE of the Polje repository.

@@ -1,8 +1,8 @@
 /**
- * Polje Worker — M0–M2
+ * Polje Worker — M0–M9 + mail + ledger
  *
  * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
- * Bindings: D1 + R2 + Queue + FarmRuntime DO
+ * Cron: every 5 min (irrigation schedules + 06:00 Zagreb briefing gate)
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -15,7 +15,11 @@
     "enabled": true
   },
   "vars": {
-    "SERVICE_NAME": "polje"
+    "SERVICE_NAME": "polje",
+    "DEFAULT_FARM_SLUG": "ivan-jovic"
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
   },
   "d1_databases": [
     {
@@ -43,6 +47,11 @@
       }
     ]
   },
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "FARM", "class_name": "FarmRuntime" }

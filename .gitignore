@@ -39,6 +39,12 @@ credentials.json
 secrets.json
 secrets.*.json
 
+# FPS LoRa gateway secrets (keep *.example committed)
+forks/qtech/**/DB_Token.json
+!forks/qtech/**/DB_Token.json.example
+deploy/gateway/.env
+
 # Dropbox
 .dropbox
 .dropbox.attr
+

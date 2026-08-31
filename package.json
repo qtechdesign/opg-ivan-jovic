@@ -22,13 +22,17 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
     "@cloudflare/workers-types": "^4.20250906.0",
+    "@vitest/snapshot": "^3.0.9",
     "typescript": "^5.9.2",
     "vitest": "~3.0.9",
     "wrangler": "4.35.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "agents": "0.22.0",
     "hono": "^4.9.0",
-    "zod": "^3.25.0"
+    "postal-mime": "^2.4.4",
+    "zod": "^4.2.0"
   },
   "engines": {
     "node": ">=20"

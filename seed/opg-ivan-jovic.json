@@ -1,6 +1,7 @@
 {
   "slug": "ivan-jovic",
   "name": "OPG Ivan Jović",
+  "country": "HR",
   "timezone": "Europe/Zagreb",
   "story": "1923 house. Katica, Vinko, Jana. Four daughters. Hay and cows. Rebuild with software, solar, and machines.",
   "plots": [
@@ -11,8 +12,7 @@
   ],
   "zones": [
     { "name": "Garden drip", "kind": "drip" },
-    { "name": "Hay / orchard frost line", "kind": "frost" },
-    { "name": "Old house climate", "kind": "climate" }
+    { "name": "Hay / orchard frost line", "kind": "frost" }
   ],
   "iot": {
     "mqtt": "mqtt.farm.lan:1883",
@@ -20,5 +20,6 @@
     "edge": "edge.farm.lan",
     "nvr": "nvr.farm.lan"
   },
-  "fps_fork": "forks/qtech"
+  "fps_fork": "forks/qtech",
+  "sql": "seed/opg-ivan-jovic.sql"
 }

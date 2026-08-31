@@ -1,5 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { IngestBatch } from "@polje/schema";
+import { evaluateAutomations } from "../lib/automations";
+import { defaultFarmSlug } from "../lib/farm";
 
 export type MetricKey = string; // `${device_id}:${metric}`
 
@@ -17,6 +19,7 @@ export type FarmLiveState = {
   mqtt?: string;
   gateway?: string;
   nvr?: "ok" | "down" | "unconfigured";
+  frost?: "idle" | "watch" | "armed" | "spraying";
   edge_seen_at: string | null;
   last_ingest_at: string | null;
   last_batch_id: string | null;
@@ -26,6 +29,7 @@ export type FarmLiveState = {
 type Env = Cloudflare.Env;
 
 const BATCH_TTL_MS = 24 * 60 * 60 * 1000;
+const TICK_MS = 60_000;
 
 export class FarmRuntime extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -52,9 +56,13 @@ export class FarmRuntime extends DurableObject<Env> {
     await this.ctx.storage.put("state", state);
   }
 
+  private async scheduleTick(): Promise<void> {
+    await this.ctx.storage.setAlarm(Date.now() + TICK_MS);
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const farmId = url.searchParams.get("farm_id") || "ivan-jovic";
+    const farmId = url.searchParams.get("farm_id") || defaultFarmSlug(this.env);
 
     if (url.pathname === "/ws" || request.headers.get("Upgrade") === "websocket") {
       if (request.headers.get("Upgrade") !== "websocket") {
@@ -82,6 +90,7 @@ export class FarmRuntime extends DurableObject<Env> {
         mqtt: state.mqtt,
         gateway: state.gateway,
         nvr: state.nvr,
+        frost: state.frost,
         edge_seen_at: state.edge_seen_at,
         last_ingest_at: state.last_ingest_at,
         last_batch_id: state.last_batch_id,
@@ -92,6 +101,28 @@ export class FarmRuntime extends DurableObject<Env> {
       const batch = (await request.json()) as IngestBatch;
       const result = await this.applyIngest(batch);
       return Response.json(result, { status: result.duplicate ? 200 : 202 });
+    }
+
+    if (url.pathname === "/evaluate" && request.method === "POST") {
+      let body: { force_id?: string; force_manual?: boolean } = {};
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        /* empty */
+      }
+      const state = await this.loadState(farmId);
+      const result = await evaluateAutomations(this.env.DB, state, {
+        forceId: body.force_id,
+        forceManual: body.force_manual,
+      });
+      if (result.fired.length) {
+        this.broadcast({
+          type: "automation",
+          farm_id: state.farm_id,
+          fired: result.fired,
+        });
+      }
+      return Response.json(result);
     }
 
     return new Response("Not found", { status: 404 });
@@ -126,6 +157,7 @@ export class FarmRuntime extends DurableObject<Env> {
     if (batch.health?.mqtt) state.mqtt = batch.health.mqtt;
     if (batch.health?.gateway) state.gateway = batch.health.gateway;
     if (batch.health?.nvr) state.nvr = batch.health.nvr;
+    if (batch.health?.frost) state.frost = batch.health.frost;
     state.edge_seen_at = now;
     state.last_ingest_at = batch.sent_at || now;
     state.last_batch_id = batch.batch_id;
@@ -133,10 +165,8 @@ export class FarmRuntime extends DurableObject<Env> {
 
     await this.saveState(state);
     await this.ctx.storage.put(seenKey, Date.now());
-    // Best-effort TTL cleanup via alarm of old keys is overkill; overwrite is fine.
-    await this.ctx.storage.setAlarm(Date.now() + BATCH_TTL_MS);
+    await this.scheduleTick();
 
-    // Persist readings + device last_seen to D1 (best-effort)
     try {
       if (batch.readings.length > 0) {
         const stmts = batch.readings.map((r) =>
@@ -175,6 +205,20 @@ export class FarmRuntime extends DurableObject<Env> {
     }
 
     this.broadcast({ type: "ingest", ...state });
+
+    try {
+      const evalResult = await evaluateAutomations(this.env.DB, state);
+      if (evalResult.fired.length) {
+        this.broadcast({
+          type: "automation",
+          farm_id: state.farm_id,
+          fired: evalResult.fired,
+        });
+      }
+    } catch (err) {
+      console.error("automation evaluate after ingest failed", err);
+    }
+
     return { ok: true, duplicate: false, applied: batch.readings.length };
   }
 
@@ -194,9 +238,10 @@ export class FarmRuntime extends DurableObject<Env> {
       ws.send("pong");
       return;
     }
-    // Clients may request a fresh snapshot
     if (typeof message === "string" && message === "snapshot") {
-      const state = await this.loadState("ivan-jovic");
+      const stored = await this.ctx.storage.get<FarmLiveState>("state");
+      const farmId = stored?.farm_id || defaultFarmSlug(this.env);
+      const state = stored ?? (await this.loadState(farmId));
       ws.send(JSON.stringify({ type: "snapshot", ...state }));
     }
   }
@@ -206,7 +251,6 @@ export class FarmRuntime extends DurableObject<Env> {
   }
 
   async alarm() {
-    // Prune batch idempotency keys older than TTL
     const all = await this.ctx.storage.list<number>({ prefix: "batch:" });
     const cutoff = Date.now() - BATCH_TTL_MS;
     const toDelete: string[] = [];
@@ -214,6 +258,32 @@ export class FarmRuntime extends DurableObject<Env> {
       if (typeof ts === "number" && ts < cutoff) toDelete.push(key);
     }
     if (toDelete.length) await this.ctx.storage.delete(toDelete);
+
+    try {
+      const stored = await this.ctx.storage.get<FarmLiveState>("state");
+      const live =
+        stored ??
+        ({
+          farm_id: defaultFarmSlug(this.env),
+          starlink: "unknown",
+          edge_seen_at: null,
+          last_ingest_at: null,
+          last_batch_id: null,
+          metrics: {},
+        } satisfies FarmLiveState);
+      const result = await evaluateAutomations(this.env.DB, live);
+      if (result.fired.length) {
+        this.broadcast({
+          type: "automation",
+          farm_id: live.farm_id,
+          fired: result.fired,
+        });
+      }
+    } catch (err) {
+      console.error("automation alarm tick failed", err);
+    }
+
+    await this.scheduleTick();
   }
 }
 

@@ -1,0 +1,31 @@
+# LoRa gateway box (lora.farm.lan) — optional radio profile
+#
+# Without SX127x/E32 hardware, skip this compose and use Edge sim:
+#   cd ../edge && docker compose --profile sim up -d sim
+#
+# On the Pi with radio (preferred — not Docker):
+#   cd forks/qtech/FPS/tools/firmware/qtech-lora-gateway
+#   pip install paho-mqtt
+#   export MQTT_URL=mqtt://mqtt.farm.lan:1883 FIREBASE_ENABLED=0
+#   python3 polje_main.py
+#
+# Docker MQTT smoke (no serial):
+#   cp .env.example .env && docker compose --profile radio up -d
+
+services:
+  gateway:
+    profiles: ["radio"]
+    build:
+      context: ../..
+      dockerfile: deploy/gateway/Dockerfile
+    environment:
+      MQTT_URL: ${MQTT_URL:-mqtt://host.docker.internal:1883}
+      POLJE_FARM_ID: ${POLJE_FARM_ID:-ivan-jovic}
+      POLJE_GW_ID: ${POLJE_GW_ID:-fps-gw-1}
+      POLJE_ENABLED: ${POLJE_ENABLED:-1}
+      FIREBASE_ENABLED: ${FIREBASE_ENABLED:-0}
+      POLJE_DEFAULT_SENSOR: ${POLJE_DEFAULT_SENSOR:-fps-sn-1}
+      POLJE_DEFAULT_VALVE: ${POLJE_DEFAULT_VALVE:-fps-valve-1}
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
