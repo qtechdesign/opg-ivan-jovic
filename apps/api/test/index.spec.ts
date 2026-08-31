@@ -1,8 +1,10 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it, beforeAll } from "vitest";
-import app from "../src/index";
+import { app } from "../src/index";
+import { farmStub } from "../src/do/farm-runtime";
 
 const OPERATOR = "test-operator-token";
+const INGEST = "test-ingest-token";
 
 const MIGRATION = [
   `CREATE TABLE farms (
@@ -53,6 +55,25 @@ const MIGRATION = [
   caption TEXT,
   content_type TEXT,
   created_at TEXT NOT NULL
+)`,
+  `CREATE TABLE devices (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  driver TEXT NOT NULL,
+  name TEXT NOT NULL,
+  zone TEXT,
+  protocol TEXT,
+  address TEXT,
+  config_json TEXT,
+  last_seen TEXT
+)`,
+  `CREATE TABLE readings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id TEXT NOT NULL,
+  metric TEXT NOT NULL,
+  value REAL NOT NULL,
+  ts TEXT NOT NULL
 )`,
 ];
 
@@ -187,5 +208,70 @@ describe("polje M1", () => {
     const html = await res.text();
     expect(html).toContain("Zemlja");
     expect(html).toContain("Operator token");
+  });
+
+  it("POST /v1/ingest without token → 401", async () => {
+    const res = await app.request(
+      "/v1/ingest",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          farm_id: "ivan-jovic",
+          batch_id: "b1",
+          sent_at: new Date().toISOString(),
+          readings: [],
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("FarmRuntime applies ingest + overview", async () => {
+    const stub = farmStub(env, "ivan-jovic");
+    const batch = {
+      farm_id: "ivan-jovic",
+      batch_id: "test-batch-1",
+      sent_at: "2026-08-31T12:00:00Z",
+      readings: [
+        {
+          device_id: "soil-n-1",
+          metric: "moisture",
+          value: 0.33,
+          ts: "2026-08-31T12:00:00Z",
+        },
+      ],
+      health: { starlink: "up" as const, edge: "ok", mqtt: "ok" },
+    };
+    const apply = await stub.fetch(
+      new Request("https://do/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+      })
+    );
+    expect(apply.status).toBe(202);
+    const first = (await apply.json()) as { duplicate: boolean; applied: number };
+    expect(first.duplicate).toBe(false);
+    expect(first.applied).toBe(1);
+
+    const dup = await stub.fetch(
+      new Request("https://do/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch),
+      })
+    );
+    const second = (await dup.json()) as { duplicate: boolean };
+    expect(second.duplicate).toBe(true);
+
+    const overview = await app.request("/v1/overview?farm=ivan-jovic", {}, env);
+    expect(overview.status).toBe(200);
+    const body = (await overview.json()) as {
+      live: { starlink: string; metrics: Record<string, { value: number }> };
+    };
+    expect(body.live.starlink).toBe("up");
+    expect(body.live.metrics["soil-n-1:moisture"].value).toBe(0.33);
   });
 });

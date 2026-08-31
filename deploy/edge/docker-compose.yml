@@ -1,4 +1,4 @@
-# Mosquitto only — Polje Edge app arrives in M2
+# Polje Edge — Mosquitto + Edge + optional Frigate (M3)
 services:
   mosquitto:
     image: eclipse-mosquitto:2
@@ -10,5 +10,39 @@ services:
       - mosquitto-data:/mosquitto/data
     restart: unless-stopped
 
+  edge:
+    build: ../../apps/edge
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      POLJE_API: ${POLJE_API:-https://opg-ivanjovic.hr}
+      INGEST_TOKEN: ${INGEST_TOKEN}
+      FARM_ID: ivan-jovic
+      FLUSH_MS: "5000"
+    volumes:
+      - edge-data:/var/lib/polje
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+
+  sim:
+    build: ../../apps/edge
+    command: ["node", "src/sim.js"]
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      FARM_ID: ivan-jovic
+      SIM_INTERVAL_MS: "10000"
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+    profiles: ["sim"]
+
+  nvr:
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    profiles: ["cameras"]
+
 volumes:
   mosquitto-data:
+  edge-data:

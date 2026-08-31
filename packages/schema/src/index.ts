@@ -111,3 +111,42 @@ export const HealthSchema = z.object({
 });
 
 export type Health = z.infer<typeof HealthSchema>;
+
+export const IngestReadingSchema = z.object({
+  device_id: z.string().min(1).max(128),
+  metric: z.string().min(1).max(64),
+  value: z.number(),
+  ts: z.string().min(1),
+});
+
+export type IngestReading = z.infer<typeof IngestReadingSchema>;
+
+export const IngestBatchSchema = z.object({
+  farm_id: z.string().min(1),
+  batch_id: z.string().min(1).max(128),
+  sent_at: z.string().min(1),
+  readings: z.array(IngestReadingSchema).max(500).default([]),
+  health: z
+    .object({
+      starlink: z.enum(["up", "down"]).optional(),
+      gateway: z.string().optional(),
+      mqtt: z.string().optional(),
+      edge: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type IngestBatch = z.infer<typeof IngestBatchSchema>;
+
+export const LocalHealthSchema = z.object({
+  farm_id: z.string(),
+  starlink: z.enum(["up", "down", "unknown"]),
+  edge: z.string().optional(),
+  mqtt: z.string().optional(),
+  gateway: z.string().optional(),
+  edge_seen_at: z.string().nullable(),
+  last_ingest_at: z.string().nullable(),
+  last_batch_id: z.string().nullable(),
+});
+
+export type LocalHealth = z.infer<typeof LocalHealthSchema>;

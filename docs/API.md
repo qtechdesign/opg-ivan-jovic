@@ -27,6 +27,17 @@ Auth for writes: `Authorization: Bearer <OPERATOR_TOKEN>` (Cloudflare secret).
 | POST | `/v1/media` | multipart: `file`, optional `plot_id`, `planting_id`, `caption`, `farm_slug` |
 | GET | `/v1/audit?farm=ivan-jovic&limit=50` | recent audit rows |
 
-Every write inserts an `audit` row (`user:operator`).
+## Edge ingest (M2)
+
+| Method | Path | Auth | Body |
+|---|---|---|---|
+| POST | `/v1/ingest` | Bearer `INGEST_TOKEN` | `{ farm_id, batch_id, sent_at, readings[], health? }` → Queue → FarmRuntime DO |
+| GET | `/v1/overview?farm=ivan-jovic` | no | farm + live DO snapshot |
+| GET | `/v1/local/health?farm=ivan-jovic` | no | starlink / edge / last_ingest |
+| WS | `/v1/live?farm=ivan-jovic` | no | live metric events from DO |
+
+Idempotent on `batch_id` (24h). See `docs/IOT.md` and `docs/LOCAL-SERVERS.md`.
+
+Every write inserts an `audit` row (`user:operator` or `edge`).
 
 JPEG / PNG / WebP only, max 5 MB. R2 key: `{slug}/growth/{uuid}.{ext}`.

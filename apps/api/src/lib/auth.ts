@@ -23,15 +23,29 @@ export async function timingSafeEqualString(
 export async function requireOperator(
   c: Context<AppEnv>
 ): Promise<Response | null> {
-  const expected = c.env.OPERATOR_TOKEN;
+  return requireBearer(c, c.env.OPERATOR_TOKEN, "OPERATOR_TOKEN");
+}
+
+/** Require Bearer INGEST_TOKEN for edge → cloud ingest. */
+export async function requireIngest(
+  c: Context<AppEnv>
+): Promise<Response | null> {
+  return requireBearer(c, c.env.INGEST_TOKEN, "INGEST_TOKEN");
+}
+
+async function requireBearer(
+  c: Context<AppEnv>,
+  expected: string | undefined,
+  name: string
+): Promise<Response | null> {
   if (!expected) {
-    return c.json({ error: "operator_token_not_configured" }, 500);
+    return c.json({ error: `${name.toLowerCase()}_not_configured` }, 500);
   }
 
   const header = c.req.header("Authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   if (!match) {
-    return c.json({ error: "unauthorized", hint: "Bearer OPERATOR_TOKEN" }, 401);
+    return c.json({ error: "unauthorized", hint: `Bearer ${name}` }, 401);
   }
 
   const ok = await timingSafeEqualString(match[1].trim(), expected);

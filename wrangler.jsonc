@@ -1,8 +1,8 @@
 /**
- * Polje Worker — M0 skeleton + M1 land ledger
+ * Polje Worker — M0–M2
  *
  * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
- * Bindings: D1 + R2 (DO / Queues later)
+ * Bindings: D1 + R2 + Queue + FarmRuntime DO
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -29,6 +29,29 @@
     {
       "binding": "MEDIA",
       "bucket_name": "polje-media"
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "INGEST", "queue": "polje-ingest" }
+    ],
+    "consumers": [
+      {
+        "queue": "polje-ingest",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5
+      }
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "FARM", "class_name": "FarmRuntime" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-farm-runtime",
+      "new_sqlite_classes": ["FarmRuntime"]
     }
   ],
   "routes": [

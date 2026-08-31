@@ -1,0 +1,16 @@
+{
+  "name": "@polje/edge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "sim": "node src/sim.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.14.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

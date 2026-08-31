@@ -2,13 +2,15 @@ import { Hono } from "hono";
 import {
   CreatePlantingSchema,
   CreatePlotSchema,
+  IngestBatchSchema,
   PatchPlantingSchema,
   type Planting,
   type Plot,
 } from "@polje/schema";
-import { requireOperator } from "../lib/auth";
+import { requireIngest, requireOperator } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { DEFAULT_FARM_SLUG, getFarmBySlug } from "../lib/farm";
+import { farmStub } from "../do/farm-runtime";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -490,4 +492,106 @@ api.get("/v1/audit", async (c) => {
     .all();
 
   return c.json({ farm_id: farm.id, audit: results ?? [] });
+});
+
+api.post("/v1/ingest", async (c) => {
+  const denied = await requireIngest(c);
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const parsed = IngestBatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const farm =
+    (await getFarmBySlug(c.env.DB, parsed.data.farm_id)) ||
+    (await c.env.DB.prepare(
+      `SELECT id, slug, name, country, timezone, lat, lon, starlink_site, created_at
+       FROM farms WHERE id = ?`
+    )
+      .bind(parsed.data.farm_id)
+      .first());
+
+  if (!farm) {
+    return c.json({ error: "farm_not_found", farm_id: parsed.data.farm_id }, 404);
+  }
+
+  const batch = {
+    ...parsed.data,
+    farm_id: farm.slug,
+  };
+
+  await c.env.INGEST.send(batch);
+  return c.json(
+    { ok: true, queued: true, batch_id: batch.batch_id, farm: farm.slug },
+    202
+  );
+});
+
+api.get("/v1/overview", async (c) => {
+  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const stub = farmStub(c.env, farm.slug);
+  const liveRes = await stub.fetch(
+    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
+  );
+  const live = await liveRes.json();
+
+  const { results: plots } = await c.env.DB.prepare(
+    `SELECT id, name, use_type FROM plots WHERE farm_id = ? ORDER BY name`
+  )
+    .bind(farm.id)
+    .all();
+
+  return c.json({
+    farm: {
+      id: farm.id,
+      slug: farm.slug,
+      name: farm.name,
+      timezone: farm.timezone,
+    },
+    plots: plots ?? [],
+    live,
+  });
+});
+
+api.get("/v1/local/health", async (c) => {
+  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const stub = farmStub(c.env, farm.slug);
+  const res = await stub.fetch(
+    new Request(`https://do/health?farm_id=${encodeURIComponent(farm.slug)}`)
+  );
+  return new Response(res.body, {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
+api.get("/v1/live", async (c) => {
+  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const upgrade = c.req.header("Upgrade");
+  if (upgrade !== "websocket") {
+    return c.json({ error: "expected_websocket", hint: "Upgrade: websocket" }, 426);
+  }
+
+  const stub = farmStub(c.env, slug);
+  return stub.fetch(
+    new Request(`https://do/ws?farm_id=${encodeURIComponent(slug)}`, c.req.raw)
+  );
 });

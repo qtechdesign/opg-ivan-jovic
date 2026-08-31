@@ -14,16 +14,17 @@ House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour
 
 If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1.1 opg-ivanjovic.hr`) — custom domains are attached and serving.
 
-## Stack (M0–M1)
+## Stack (M0–M2)
 
 | Piece | Role |
 |---|---|
 | Cloudflare Worker (Hono) | HTTP API + HTML console (`/`, `/land`) |
 | D1 | Relational ledger (farms, plots, plantings, audit, …) |
 | R2 `polje-media` | Growth diary photos |
-| Mosquitto (compose stub) | Local MQTT — edge app arrives in M2 |
+| Queue `polje-ingest` + FarmRuntime DO | Live telemetry + WS |
+| Polje Edge + Mosquitto | Farm LAN ingest / outbox (`deploy/edge`) |
 
-Later: Durable Objects, Queues, Polje Edge, FPS LoRa fork, MCP, Grok. Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
+Later: Frigate cameras, FPS LoRa fork, MCP, Grok. Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
 
 ## Secrets
 
@@ -49,14 +50,19 @@ Then:
 
 - http://127.0.0.1:8787/
 - http://127.0.0.1:8787/land
-- http://127.0.0.1:8787/v1/health
-- http://127.0.0.1:8787/v1/farms/ivan-jovic
+- http://127.0.0.1:8787/v1/overview?farm=ivan-jovic
 
-Local MQTT (optional):
+Local MQTT + Edge (optional):
 
 ```bash
-cd deploy/edge && docker compose up -d
+cd deploy/edge
+export INGEST_TOKEN=dev-ingest-token-change-me
+export POLJE_API=http://host.docker.internal:8787
+docker compose up -d mosquitto edge
+docker compose --profile sim up -d sim
 ```
+
+See [`docs/LOCAL-SERVERS.md`](docs/LOCAL-SERVERS.md).
 
 ## FPS fork (M4 — not yet)
 

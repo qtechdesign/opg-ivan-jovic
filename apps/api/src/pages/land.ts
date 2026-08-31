@@ -61,33 +61,90 @@ export async function renderHome(c: Context<AppEnv>) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>POLJE · ${escapeHtml(title)}</title>
-  <style>${CHASSIS_CSS}</style>
+  <style>${CHASSIS_CSS}
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .metric { border: 1px solid var(--hairline); border-radius: 4px; padding: 16px; background: color-mix(in oklab, var(--void-soft) 82%, transparent); }
+  .metric .n { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 28px; line-height: 1; }
+  .metric .u { font-size: 12px; letter-spacing: 0.08em; color: var(--spectral-dim); text-transform: uppercase; margin-left: 6px; }
+  .metric .l { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); margin-top: 8px; }
+  .pip.down::before { background: var(--alarm); }
+  @media (max-width: 640px) { .metrics { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
   <header>
     <span class="brand">Polje · OPG Ivan Jović</span>
-    <div>
-      <nav>
-        <a href="/">Pregled</a>
-        <a href="/land">Zemlja</a>
-      </nav>
-    </div>
-    <span class="pip ${statusClass}">${status}</span>
+    <nav>
+      <a href="/">Pregled</a>
+      <a href="/land">Zemlja</a>
+    </nav>
+    <span class="pip ${statusClass}" id="starlink-pip">STARLINK · —</span>
   </header>
   <main>
     <h1>${escapeHtml(title)}</h1>
-    <p class="sub">Konzola farme · M1 ledger · Europa/Zagreb</p>
+    <p class="sub">Konzola farme · M2 edge/ingest · Europa/Zagreb</p>
+    <div class="metrics">
+      <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">Temp</div></div>
+      <div class="metric"><div><span class="n" id="m-soil">—</span><span class="u">moist</span></div><div class="l">Tlo</div></div>
+      <div class="metric"><div><span class="n" id="m-edge">—</span><span class="u">seen</span></div><div class="l">Edge</div></div>
+    </div>
     <section class="panel">
       <h2>Parcele</h2>
       <ul>${plotsHtml}</ul>
     </section>
     <p class="actions">
       <a class="btn-ghost" href="/land">Zemlja · ledger</a>
-      <a class="btn-ghost" href="/v1/farms/ivan-jovic">JSON · farm</a>
+      <a class="btn-ghost" href="/v1/overview?farm=ivan-jovic">JSON · overview</a>
+      <a class="btn-ghost" href="/v1/local/health?farm=ivan-jovic">Local health</a>
       <a class="btn-ghost" href="/v1/health">Health</a>
     </p>
     <footer>Polje is the field. The field was here first.</footer>
   </main>
+  <script>
+    const pip = document.getElementById("starlink-pip");
+    const elTemp = document.getElementById("m-temp");
+    const elSoil = document.getElementById("m-soil");
+    const elEdge = document.getElementById("m-edge");
+
+    function applyLive(live) {
+      if (!live) return;
+      const star = (live.starlink || "unknown").toUpperCase();
+      pip.textContent = "STARLINK · " + star;
+      pip.className = "pip " + (live.starlink === "up" ? "ok" : live.starlink === "down" ? "down" : "warn");
+      const metrics = live.metrics || {};
+      const temp = metrics["temp-yard-1:temp_c"] || Object.values(metrics).find(m => m.metric === "temp_c");
+      const soil = metrics["soil-n-1:moisture"] || Object.values(metrics).find(m => m.metric === "moisture");
+      if (temp) elTemp.textContent = Number(temp.value).toFixed(1);
+      if (soil) elSoil.textContent = Number(soil.value).toFixed(2);
+      elEdge.textContent = live.edge_seen_at
+        ? new Date(live.edge_seen_at).toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        : "—";
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch("/v1/overview?farm=ivan-jovic");
+        const data = await res.json();
+        applyLive(data.live);
+      } catch (e) { console.warn(e); }
+    }
+
+    refresh();
+    setInterval(refresh, 15000);
+
+    try {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(proto + "//" + location.host + "/v1/live?farm=ivan-jovic");
+      ws.onmessage = (ev) => {
+        if (ev.data === "pong") return;
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "snapshot" || msg.type === "ingest") applyLive(msg);
+        } catch {}
+      };
+      setInterval(() => { if (ws.readyState === 1) ws.send("ping"); }, 25000);
+    } catch (e) { console.warn("ws", e); }
+  </script>
 </body>
 </html>`);
 }
