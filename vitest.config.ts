@@ -8,6 +8,8 @@ export default defineWorkersConfig({
         miniflare: {
           bindings: {
             SERVICE_NAME: "polje",
+            OPERATOR_TOKEN: "test-operator-token",
+            INGEST_TOKEN: "test-ingest-token",
           },
         },
       },

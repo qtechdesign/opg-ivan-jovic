@@ -1,5 +1,5 @@
 # Local Wrangler secrets only (never commit this file).
-# Production: npx wrangler secret put INGEST_TOKEN
-# Later modules also use: XAI_API_KEY, FARM_JWT_SECRET, AGENT_TOKEN
+# Production: npx wrangler secret put NAME
 
 INGEST_TOKEN=dev-ingest-token-change-me
+OPERATOR_TOKEN=dev-operator-token-change-me

@@ -25,6 +25,79 @@ export const PlotSchema = z.object({
 
 export type Plot = z.infer<typeof PlotSchema>;
 
+export const PlantingStageSchema = z.enum([
+  "planned",
+  "seeded",
+  "growing",
+  "harvest",
+  "fallow",
+]);
+
+export type PlantingStage = z.infer<typeof PlantingStageSchema>;
+
+export const PlantingSchema = z.object({
+  id: z.string().uuid(),
+  plot_id: z.string().uuid(),
+  crop: z.string().min(1),
+  variety: z.string().nullable().optional(),
+  planted_on: z.string().nullable().optional(),
+  stage: PlantingStageSchema.nullable().optional(),
+  expected_harvest: z.string().nullable().optional(),
+  yield_kg: z.number().nullable().optional(),
+});
+
+export type Planting = z.infer<typeof PlantingSchema>;
+
+export const CreatePlotSchema = z.object({
+  farm_slug: z.string().min(1).default("ivan-jovic"),
+  name: z.string().min(1).max(120),
+  hectares: z.number().positive().nullable().optional(),
+  use_type: z.string().max(64).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+export type CreatePlot = z.infer<typeof CreatePlotSchema>;
+
+export const CreatePlantingSchema = z.object({
+  plot_id: z.string().uuid(),
+  crop: z.string().min(1).max(120),
+  variety: z.string().max(120).nullable().optional(),
+  planted_on: z.string().nullable().optional(),
+  stage: PlantingStageSchema.default("planned"),
+  expected_harvest: z.string().nullable().optional(),
+  yield_kg: z.number().nonnegative().nullable().optional(),
+});
+
+export type CreatePlanting = z.infer<typeof CreatePlantingSchema>;
+
+export const PatchPlantingSchema = z
+  .object({
+    crop: z.string().min(1).max(120).optional(),
+    variety: z.string().max(120).nullable().optional(),
+    planted_on: z.string().nullable().optional(),
+    stage: PlantingStageSchema.optional(),
+    expected_harvest: z.string().nullable().optional(),
+    yield_kg: z.number().nonnegative().nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "at least one field required",
+  });
+
+export type PatchPlanting = z.infer<typeof PatchPlantingSchema>;
+
+export const GrowthMediaSchema = z.object({
+  id: z.string().uuid(),
+  farm_id: z.string().uuid(),
+  plot_id: z.string().uuid().nullable().optional(),
+  planting_id: z.string().uuid().nullable().optional(),
+  r2_key: z.string().min(1),
+  caption: z.string().nullable().optional(),
+  content_type: z.string().nullable().optional(),
+  created_at: z.string(),
+});
+
+export type GrowthMedia = z.infer<typeof GrowthMediaSchema>;
+
 export const FarmWithPlotsSchema = FarmSchema.extend({
   plots: z.array(PlotSchema),
 });

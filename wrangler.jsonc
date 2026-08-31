@@ -1,8 +1,8 @@
 /**
- * Polje Worker — M0 skeleton
+ * Polje Worker — M0 skeleton + M1 land ledger
  *
  * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
- * Bindings: D1 only (KV / R2 / DO / Queues arrive in later modules)
+ * Bindings: D1 + R2 (DO / Queues later)
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -23,6 +23,12 @@
       "database_name": "polje",
       "database_id": "5413c190-29d4-406d-aa61-2dd44a489aca",
       "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "polje-media"
     }
   ],
   "routes": [
