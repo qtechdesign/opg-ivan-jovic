@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#008577</color>
+    <color name="colorPrimaryDark">#44783A</color>
+    <color name="colorAccent">#44783A</color>
+    <color name="colorProgressStart">#7EB1A9</color>
+    <color name="colorProgressDialog">#FFFFFF</color>
+    <color name="colorProgressCenter">#45BEAF</color>
+    <color name="colorProgressEnd">#305E58</color>
+    <color name="colorWhite">#FFFFFF</color>
+    <color name="colorWhiteAlpha">#80FFFFFF</color>
+    <color name="colorEnd">#628CD4</color>
+    <color name="colorBackGroundTint">#DFF0EE</color>
+    <color name="colorValesStateOn">#29DC71</color>
+    <color name="colorValesStateOff">#EA2D21</color>
+</resources>

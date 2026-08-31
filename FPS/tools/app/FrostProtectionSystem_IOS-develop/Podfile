@@ -1,0 +1,21 @@
+# Uncomment the next line to define a global platform for your project
+# platform :ios, '10.0'
+
+# ignore all warnings from all pods
+inhibit_all_warnings!
+
+target 'FrostProtectionSystem_IOS' do
+  pod 'Alamofire', '~> 4.7.1'
+  pod 'ObjectMapper', '~> 3.3.0'
+  pod 'RxSwift', '~> 4.3.1'
+  pod 'SnapKit', '~> 5.0.0'
+
+  pod 'Firebase/Core'
+  pod 'Firebase/Database', '~> 5.2.0'
+  pod 'Firebase/Auth'
+  pod 'GoogleSignIn'
+  
+  pod 'GoogleMaps'
+  pod 'GooglePlaces'
+  pod 'Charts'
+end

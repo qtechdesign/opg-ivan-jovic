@@ -1,0 +1,245 @@
+/* 
+  Localizable.strings
+  FrostProtectionSystem_IOS
+
+  Created by TiepNguyen on 8/28/19.
+  Copyright © 2019 qtech. All rights reserved.
+*/
+
+"Done" = "Done";
+
+"Please wait..." = "Please wait...";
+
+"Yes" = "Yes";
+
+"OK" = "OK";
+
+"No" = "No";
+
+"ON" = "ON";
+
+"OFF" = "OFF";
+
+"On" = "On";
+
+"Off" = "Off";
+
+"Save" = "Save";
+
+"Cancel" = "Cancel";
+
+"Something wrong!" = "Something wrong!";
+
+"Details" = "Details";
+
+// Home
+
+"Home" = "Home";
+
+"Search..." = "Search...";
+
+"%d devices" = "%d devices";
+
+"Map" = "Bản đồ";
+
+// Login
+
+"Password" = "Password";
+
+"Remember me" = "Remember me";
+
+"Forgot Password?" = "Forgot Password?";
+
+"Login" = "Login";
+
+"Don't have an account?" = "Don't have an account?";
+
+"Create Now" = "Create Now";
+
+"OR" = "OR";
+
+"Login with " = "Login with ";
+
+// Register
+
+"SIGN-UP" = "SIGN-UP";
+
+"Name*" = "Name*";
+
+"Password*" = "Password*";
+
+"I have read the" = "I have read the";
+
+"Term & Conditions" = "Term & Conditions";
+
+"Already have an account?" = "Already have an account?";
+
+"Login Now" = "Login Now";
+
+"Resiger success" = "Resiger success";
+
+"Email can not be empty" = "Email can not be empty";
+
+"Wrong email format" = "Wrong email format";
+
+"Password can not be empty" = "Password can not be empty";
+
+"The length of the password must be 6 characters or more" = "The length of the password must be 6 characters or more";
+
+"Name can not be empty" = "Name can not be empty";
+
+// Forgot password
+
+"FORGOT PASSWORD" = "FORGOT PASSWORD";
+
+"Enter your registered email" = "Enter your registered email";
+
+"Send Mail" = "Send Mail" ;
+
+"We sent a reset password link to your email. Do you want to check it?" = "We sent a reset password link to your email. Do you want to check it?";
+
+// Drawer Navigation
+
+"Scan QR code" = "Scan QR code";
+
+"Map of gateways/devices" = "Map of gateways/devices";
+
+"Settings" = "Settings";
+
+"Feedback" = "Feedback";
+
+"Information" = "Information";
+
+"%d Gateways" = "%d Gateways";
+
+"%d Devices" = "%d Devices";
+
+// Device
+
+"Wind Speed" = "Wind Speed";
+
+"Wind Direction" = "Wind Direction";
+
+"Air Pressure" = "Air Pressure";
+
+"Water Pressure" = "Water Pressure";
+
+"Temp 1" = "Temp 1";
+
+"Temp 2" = "Temp 2";
+
+"Humidity" = "Humidity";
+
+"Soil Moisture" = "Soil Moisture";
+
+"Battery" = "Battery";
+
+"Status:" = "Status:";
+
+"Last update: %@" = "Last update: %@";
+
+"Refresh" = "Refresh";
+
+"History" = "History";
+
+"Add device" = "Add device";
+
+"This device not exists." = "This device not exists";
+
+"This device has been deleted." = "This device has been deleted";
+
+"Edit device success." = "Edit device success.";
+
+"Add new device success." = "Add new device success.";
+
+"Select a gateway, please." = "Select a gateway, please.";
+
+"Lora ID must have 4 characters, only contain 0-9, A-F, a-f" = "Lora ID must have 4 characters, only contain 0-9, A-F, a-f";
+
+// Wind direction
+
+"North" = "North";
+
+"Northeast" = "Northeast";
+
+"East" = "East";
+
+"Southeast" = "Southeast";
+
+"South" = "South";
+
+"Southwest" = "Southwest";
+
+"West" = "West";
+
+"Northwest" = "Northwest";
+
+// Add gateway
+
+"Name:" = "Name:";
+
+"Serial key:" = "Serial key:";
+
+"Position" = "Position";
+
+"Latitude:" = "Latitude:";
+
+"Longitude:" = "Longitude:";
+
+"Auto fill location" = "Auto fill location";
+
+"Add new gateway success." = "Add new gateway success.";
+
+"Serial ID incorrect." = "Serial ID incorrect.";
+
+"Do you want to delete all data of the device?" = "Do you want to delete all data of the device?";
+
+"Serial key not be empty" = "Serial key not be empty";
+
+// Scan QR Code
+
+"Scan QR Code" = "Scan QR Code";
+
+"Keep camera on the QR code" = "Keep camera on the QR code";
+
+"Not found a gateway or device" = "Not found a gateway or device";
+
+"After scan" = "After scan";
+
+// Setting
+
+"Language:" = "Language:";
+
+"Information" = "Information";
+
+"Version: " = "Version: ";
+
+"Copyright:" = "Copyright:";
+
+"Contact:" = "Contact:";
+
+// Gateway
+
+"This gateway has been deleted." = "This gateway has been deleted.";
+
+"This gateway not exists." = "This gateway not exists.";
+
+"Please enter latitude and longitude coordinates." = "Please enter latitude and longitude coordinates.";
+
+"Edit gateway success." = "Edit gateway success.";
+
+"QR Code incorrect" = "QR Code incorrect";
+
+// Map
+
+"Select" = "Select";
+
+"Select coodinates" = "Select coodinates";
+
+// Chart
+
+"Start: %@" = "Start: %@";
+
+"End: %@" = "End: %@";
+
+"A few seconds ago" = "A few seconds ago";

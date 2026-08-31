@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/llRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_gradient_app"
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="70dp"
+            android:fontFamily="@font/font_app"
+            android:gravity="center_horizontal"
+            android:text="@string/forgotPassFragmentTvTitle"
+            android:textColor="@color/colorWhite"
+            android:textSize="25dp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/tvMail"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!--Email-->
+        <TextView
+            android:id="@+id/tvMail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="63dp"
+            android:layout_marginTop="39dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/forgotPassFragmentTvEnterYourEmail"
+            android:textColor="@color/colorWhite"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@+id/edtUserMail"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvTitle" />
+
+        <EditText
+            android:id="@+id/edtUserMail"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="7dp"
+            android:layout_marginEnd="38dp"
+            android:background="@drawable/bg_edt_login"
+            android:fontFamily="@font/font_app"
+            android:gravity="center_vertical"
+            android:hint="@string/loginFragmentTvEmailHint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingStart="25dp"
+            android:paddingEnd="25dp"
+            android:textColor="@color/colorWhite"
+            android:textColorHint="@color/colorWhiteAlpha"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@+id/tvSendMail"
+            app:layout_constraintTop_toBottomOf="@+id/tvMail" />
+
+        <!-- Send Mail -->
+
+        <TextView
+            android:id="@+id/tvSendMail"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="39dp"
+            android:layout_marginEnd="38dp"
+            android:background="@drawable/bg_btn_login"
+            android:gravity="center"
+            android:text="@string/forgotPassFragmentTvSend"
+            android:textColor="@color/colorEnd"
+            android:textSize="17dp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/llLogin"
+            app:layout_constraintTop_toBottomOf="@+id/edtUserMail" />
+
+        <!-- Already login acc -->
+
+        <LinearLayout
+            android:id="@+id/llLogin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center_horizontal"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toBottomOf="@+id/tvSendMail">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/signUpFragmentTvHaveAcc"
+                android:textColor="@color/colorWhiteAlpha"
+                android:textSize="13dp" />
+
+            <TextView
+                android:id="@+id/tvLoginNow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/signUpFragmentTvLoginNow"
+                android:textColor="@color/colorWhite"
+                android:textSize="13dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

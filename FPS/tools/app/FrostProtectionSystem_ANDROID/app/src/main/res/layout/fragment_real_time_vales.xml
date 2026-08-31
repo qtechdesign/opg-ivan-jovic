@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/llRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorBackGroundTint"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!--Data-->
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="22dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvNameValves"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:fontFamily="@font/font_app"
+                android:text="@string/realTimeValesFragmentTvValesNameDefault"
+                android:textColor="#377C6D"
+                android:textSize="15dp"
+                android:textStyle="bold" />
+
+
+            <TextView
+                android:id="@+id/tvItemValesState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:fontFamily="@font/font_app"
+                android:text="@string/valesDeviceOFF"
+                android:textColor="#EA2D21"
+                android:textSize="17dp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/imgValvesState"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp"
+            android:src="@drawable/ic_vales_off" />
+
+        <!--Text view last update-->
+        <TextView
+            android:id="@+id/tvLastUpdateValves"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="22dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/realTimeSensorNodeFragmentTvLastUpdate"
+            android:textColor="#377C6D"
+            android:textSize="15dp"
+            android:textStyle="bold" />
+
+        <!-- Button Control-->
+
+        <Button
+            android:id="@+id/btnValvesRefresh"
+            android:layout_width="132dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginStart="19dp"
+            android:layout_marginTop="22dp"
+            android:layout_marginEnd="19dp"
+            android:background="@drawable/bg_btn_app_white"
+            android:drawableStart="@drawable/update_arrows"
+            android:fontFamily="@font/font_app"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/realTimeSensorNodeFragmentTvBtRefresh"
+            android:textAllCaps="false"
+            android:textColor="#377C6D"
+            android:textSize="17dp" />
+
+        <Button
+            android:id="@+id/btnHistoryValves"
+            android:layout_width="132dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginStart="19dp"
+            android:layout_marginTop="22dp"
+            android:layout_marginEnd="19dp"
+            android:background="@drawable/bg_btn_app_green"
+            android:fontFamily="@font/font_app"
+            android:text="@string/realTimeSensorNodeFragmentTvBtnHistory"
+            android:textAllCaps="false"
+            android:textColor="@color/colorWhite"
+            android:textSize="17dp" />
+
+
+        <!--Recycler View data log-->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listLogVales"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="50dp"
+            android:nestedScrollingEnabled="true" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

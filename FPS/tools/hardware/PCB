@@ -1,0 +1,68 @@
+PCB build index — Qtech 3.0
+
+Purpose
+- Summarize hardware projects and where to find source, libraries, docs, and outputs.
+- Provide quick steps to build (Altium Designer) and assemble boards used in FPS.
+
+Primary PCB projects (Altium)
+- WS_QTD_v4.0 (main controller)
+  - Project: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/WS_QTD_v4.0.PrjPcb
+  - Schematics: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/Schematic/*.SchDoc
+  - Libraries: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/Library/*.SchLib, *.PcbLib
+  - Outputs: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/WS_QTD_v4.0.OutJob
+  - Reports: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/Project Outputs for WS_QTD_v4.0/* (DRC, Net Status, Gerbers)
+  - Backups/archives: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/*.zip
+
+- WS_MPPT_Board (power MPPT module)
+  - v3.0: FPS/tools/hardware/FPS_v3.0/WS_MPPT_Board/WS_MPPT_Board.PrjPcb
+    - Key files: Sch_mppt_board.SchDoc, Pcb_mppt_board.PcbDoc, *.OutJob (via project), history zip
+  - v2.0: FPS/tools/hardware/FPS_v2.0/WS_MPPT_Board/WS_MPPT_Board.PrjPcb
+    - Key files: Sch_mppt_board.SchDoc, Pcb_mppt_board.PcbDoc, Project Outputs/* (DRC, Gerbers, HTML)
+
+- Legacy WS_QTD_v2.0 (reference)
+  - Project: FPS/tools/hardware/FPS_v2.0/WS_QTD_v2.0/WS_QTD_v2.0.PrjPcb
+  - Docs/outputs: DRC RUL, PDFs, archives, previews
+
+Mechanical/3D assets
+- Enclosures/assemblies: FPS/tools/hardware/3D model/**
+  - 00 PCB - FPS + SOLAR: *.STEP, WS_QTD_v3.0.PrjPcb, Red_board.step, Black_board.step, PDF
+  - Trešnja ABS: Sklop.STEP, Tresnja_*.STEP
+
+Datasheets and notes
+- FPS/tools/hardware/FPS_v3.0/Docs/* and FPS_v2.0/Docs/*
+  - Atmel ATmega640/1280/1281/2560/2561 summary + datasheet
+  - E32-433T30S, E32-868T20S LoRa modules
+  - DS18B20, Air Pressure sensor
+- Pin changes: FPS/tools/hardware/FPS_v3.0/NOTE_CHANGE_PIN.txt
+
+Build (Altium Designer)
+1) Open project
+   - Main controller: WS_QTD_v4.0.PrjPcb
+   - Power MPPT: WS_MPPT_Board.PrjPcb (v3.0)
+2) Verify libraries are found (Library folder co-located with project).
+3) Run DRC
+   - Use WS_QTD_v4.0.OutJob or open Project Outputs/Design Rule Check reports (HTML/DRC) to confirm no errors.
+4) Generate fabrication package
+   - Use OutJob to produce Gerbers, NC Drill, assembly drawings, PDF schematics.
+   - Outputs stored under Project Outputs for WS_QTD_v4.0/ (and WS_MPPT_Board/ respectively).
+5) Optional: 3D review using mechanical STEP files under “3D model”.
+
+Assembly notes (hardware)
+- MCU: ATmega2560 family footprint; confirm oscillator and reset circuitry per schematic.
+- Radio: E32-433T30S or E32-868T20S footprints present; maintain antenna keep‑out and RF ground stitching.
+- Sensors: DS18B20 1‑Wire requires pull‑up; check Sensor_* schematics for exact value and placement.
+- Power: MPPT board interfaces with controller via defined headers; verify polarity and ground returns.
+- Relays/loads: Follow Relay.SchDoc for coil suppression and external connector pinout.
+- Apply any pin remaps from NOTE_CHANGE_PIN.txt across harness and firmware.
+
+Quick file map
+- Controller v4.0: FPS/tools/hardware/FPS_v3.0/WS_QTD_v4.0/
+- MPPT v3.0: FPS/tools/hardware/FPS_v3.0/WS_MPPT_Board/
+- Legacy v2.0: FPS/tools/hardware/FPS_v2.0/
+- 3D models: FPS/tools/hardware/3D model/
+- Docs: FPS/tools/hardware/FPS_v3.0/Docs/, FPS/tools/hardware/FPS_v2.0/Docs/
+
+Status
+- Indexed and validated for Qtech 3.0 commit.
+- Calibration photos and procedure: see `Calibration.md` and album https://photos.app.goo.gl/msPYUroQLh4XpNES6
+

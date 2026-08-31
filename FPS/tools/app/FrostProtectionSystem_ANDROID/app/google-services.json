@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "145278649281",
+    "firebase_url": "https://qtech-frost-protection-system.firebaseio.com",
+    "project_id": "qtech-frost-protection-system",
+    "storage_bucket": "qtech-frost-protection-system.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:145278649281:android:3c84d0fff7f3f9d3",
+        "android_client_info": {
+          "package_name": "com.app.frostprotectionsystemandroid"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "api_key-api_key.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.app.frostprotectionsystemandroid",
+            "certificate_hash": "certificate_hash"
+          }
+        },
+        {
+          "client_id": "client_id.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "api_key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "client_id.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
