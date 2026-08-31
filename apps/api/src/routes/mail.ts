@@ -1,13 +1,20 @@
 import { Hono } from "hono";
 import { SendMailSchema } from "@polje/schema";
 import { requireOperator } from "../lib/auth";
-import { farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
+import { farmSlugFromQuery, getFarm } from "../lib/farm";
 import {
   getMailboxByAddress,
   mailSummary,
   sendFarmMail,
 } from "../lib/mail";
 import { AGENT_MAILBOX_ADDRESS } from "@polje/schema";
+import {
+  RL_MAIL,
+  consumeRateLimit,
+  flagEnabled,
+  rlMailKey,
+  writeMetric,
+} from "../lib/kv";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -15,7 +22,7 @@ export const mailApi = new Hono<AppEnv>();
 
 mailApi.get("/v1/mail/summary", async (c) => {
   const slug = farmSlugFromQuery(c);
-  const farm = await getFarmBySlug(c.env.DB, slug);
+  const farm = await getFarm(c.env, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
 
   const summary = await mailSummary(c.env.DB, farm.id);
@@ -24,7 +31,7 @@ mailApi.get("/v1/mail/summary", async (c) => {
 
 mailApi.get("/v1/mail", async (c) => {
   const slug = farmSlugFromQuery(c);
-  const farm = await getFarmBySlug(c.env.DB, slug);
+  const farm = await getFarm(c.env, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
 
   const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") || "40") || 40));
@@ -120,9 +127,24 @@ mailApi.post("/v1/mail/send", async (c) => {
     return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
   }
 
-  const farm = await getFarmBySlug(c.env.DB, parsed.data.farm_slug);
+  const farm = await getFarm(c.env, parsed.data.farm_slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug: parsed.data.farm_slug }, 404);
+  }
+
+  if (!(await flagEnabled(c.env.KV, farm.slug, "mail_send"))) {
+    return c.json({ error: "flag_disabled", flag: "mail_send" }, 403);
+  }
+
+  const rl = await consumeRateLimit(
+    c.env.KV,
+    rlMailKey(farm.slug),
+    RL_MAIL.limit,
+    RL_MAIL.windowSec
+  );
+  if (!rl.allowed) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "rate_limited" }, 429);
   }
 
   try {
@@ -136,6 +158,7 @@ mailApi.post("/v1/mail/send", async (c) => {
       actor: "user:operator",
       reason: parsed.data.reason,
     });
+    if (result.status === "sent") writeMetric(c.env, "mail_out", farm.slug);
     return c.json(result, result.status === "sent" ? 201 : 502);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "send_failed";

@@ -3,18 +3,29 @@ import {
   CreatePlantingSchema,
   CreatePlotSchema,
   IngestBatchSchema,
+  PatchFarmFlagsSchema,
   PatchPlantingSchema,
   type Planting,
   type Plot,
 } from "@polje/schema";
 import { requireIngest, requireOperator, requireOperatorOrIngest, isOperator, mintOperatorCookieValue, setOperatorCookieHeader, clearOperatorCookieHeader, requestIsHttps, loginCredentialsOk } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
-import { defaultFarmSlug, farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
+import { defaultFarmSlug, farmSlugFromQuery, getFarm, getFarmBySlug } from "../lib/farm";
+import {
+  RL_LOGIN,
+  clientIp,
+  consumeRateLimit,
+  getFlags,
+  rlLoginKey,
+  setFlags,
+  writeMetric,
+} from "../lib/kv";
 import { farmStub } from "../do/farm-runtime";
 import { irrigationOverview } from "./irrigation";
 import { climateOverview } from "../lib/climate";
 import { energyOverview } from "../lib/energy";
 import type { FarmLiveState } from "../do/farm-runtime";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -32,7 +43,9 @@ api.get("/v1/health", (c) => {
 });
 
 api.get("/v1/session", async (c) => {
-  return c.json({ operator: await isOperator(c) });
+  const slug = defaultFarmSlug(c.env);
+  const flags = await getFlags(c.env.KV, slug);
+  return c.json({ operator: await isOperator(c), farm: slug, flags });
 });
 
 api.post("/v1/session", async (c) => {
@@ -40,6 +53,18 @@ api.post("/v1/session", async (c) => {
   if (!signing) {
     return c.json({ error: "operator_token_not_configured" }, 500);
   }
+  const ip = clientIp(c);
+  const rl = await consumeRateLimit(
+    c.env.KV,
+    rlLoginKey(ip),
+    RL_LOGIN.limit,
+    RL_LOGIN.windowSec
+  );
+  if (!rl.allowed) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "rate_limited" }, 429);
+  }
+
   let body: { email?: string; password?: string };
   try {
     body = await c.req.json();
@@ -48,13 +73,15 @@ api.post("/v1/session", async (c) => {
   }
   const email = String(body.email || "");
   const password = String(body.password || "");
+  const slug = defaultFarmSlug(c.env);
   if (!(await loginCredentialsOk(c, email, password))) {
+    writeMetric(c.env, "login_fail", slug, ip);
     return c.json({ error: "unauthorized" }, 401);
   }
   const value = await mintOperatorCookieValue(signing);
   c.header("Set-Cookie", setOperatorCookieHeader(value, requestIsHttps(c)));
 
-  const farm = await getFarmBySlug(c.env.DB, defaultFarmSlug(c.env));
+  const farm = await getFarm(c.env, slug);
   if (farm) {
     await writeAudit(c.env.DB, {
       farm_id: farm.id,
@@ -64,7 +91,55 @@ api.post("/v1/session", async (c) => {
       after: { via: "cookie", email: email.trim().toLowerCase() },
     });
   }
+  writeMetric(c.env, "login", slug);
   return c.json({ ok: true, operator: true });
+});
+
+api.get("/v1/flags", async (c) => {
+  const slug = farmSlugFromQuery(c);
+  const farm = await getFarm(c.env, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+  const flags = await getFlags(c.env.KV, farm.slug);
+  return c.json({ farm_id: farm.id, slug: farm.slug, flags });
+});
+
+api.patch("/v1/flags", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+  if (!c.env.KV) {
+    return c.json({ error: "kv_not_configured" }, 503);
+  }
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = PatchFarmFlagsSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const farm = await getFarm(c.env, parsed.data.farm_slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug: parsed.data.farm_slug }, 404);
+  }
+
+  const before = await getFlags(c.env.KV, farm.slug);
+  const flags = await setFlags(c.env.KV, farm.slug, parsed.data.flags);
+  await writeAudit(c.env.DB, {
+    farm_id: farm.id,
+    actor: "user:operator",
+    action: "flags.patch",
+    entity: `flags:${farm.slug}`,
+    before,
+    after: { flags, reason: parsed.data.reason },
+  });
+  writeMetric(c.env, "flag_patch", farm.slug);
+  return c.json({ farm_id: farm.id, slug: farm.slug, flags });
 });
 
 api.delete("/v1/session", (c) => {
@@ -640,7 +715,7 @@ api.post("/v1/ingest", async (c) => {
 
 api.get("/v1/overview", async (c) => {
   const slug = farmSlugFromQuery(c);
-  const farm = await getFarmBySlug(c.env.DB, slug);
+  const farm = await getFarm(c.env, slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
   }
@@ -687,6 +762,8 @@ api.get("/v1/overview", async (c) => {
     energy = null;
   }
 
+  const flags = await getFlags(c.env.KV, farm.slug);
+
   return c.json({
     farm: {
       id: farm.id,
@@ -699,7 +776,22 @@ api.get("/v1/overview", async (c) => {
     irrigation,
     climate,
     energy,
+    flags,
   });
+});
+
+api.get("/v1/weather/now", async (c) => {
+  const slug = farmSlugFromQuery(c);
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+  const stub = farmStub(c.env, farm.slug);
+  const liveRes = await stub.fetch(
+    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
+  );
+  const live = (await liveRes.json()) as FarmLiveState;
+  return c.json(weatherNow(farm.timezone, live));
 });
 
 api.get("/v1/local/health", async (c) => {

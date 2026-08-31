@@ -1,3 +1,8 @@
+---
+title: Hardware
+description: FPS boards, PIP 2.0, and the buy-now / build-later procurement filter.
+---
+
 # Hardware lineage — FPS + farm IoT
 
 Hardware files live in the fork: [`forks/qtech/FPS/tools/hardware`](../forks/qtech/FPS/tools/hardware). Polje does **not** redesign PCBs in M4.

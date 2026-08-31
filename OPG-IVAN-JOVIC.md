@@ -62,7 +62,7 @@ One control plane for the farm:
 2. **Confirm dangerous writes.** Irrigation longer than X minutes, heat above Y °C, any pump/heater ON from an agent → requires `confirm: true` + audit log. Grok can *propose*; humans or a signed policy *commit*.
 3. **Every action is an event.** Who / what / why / before / after. Agents included.
 4. **EUR + Croatian context.** Currency EUR. Dates ISO-8601. Optional HR labels in UI. Do not invent legal advice; keep a `compliance/` folder for OPG notes.
-5. **Public by default, secrets never.** Code, schemas, MCP, roadmap = public. Tokens, camera URLs, exact GPS of private cameras, bank data = private.
+5. **Public by default, secrets never.** Code, schemas, MCP, roadmap, live camera stills, and the operating cash-flow book = public. Tokens, RTSP URLs, exact GPS of private cameras, bank credentials = private.
 6. **Starlink-aware.** Assume intermittent rural uplink. Buffer telemetry on-edge. Prefer small JSON over fat video. Snapshots first, streams second.
 7. **Local servers are first-class.** MQTT, LoRa gateway, FPS valve logic, camera NVR and irrigation schedules must run on-farm. Cloud is sync + brain + remote access, not the only runtime.
 8. **Qtech / FPS is a living fork.** [`qtechdesign/qtech`](https://github.com/qtechdesign/qtech) lands in `forks/qtech` and **stays**. The Qtech server, gateway, firmware and apps are extended and modified as OPG Ivan Jović grows — new plots, new valves, new sensors, new cloud bindings. Do not freeze FPS as a museum copy.
@@ -81,13 +81,14 @@ One control plane for the farm:
 | **Workers** | HTTP API, auth, webhooks, MCP Streamable HTTP |
 | **Durable Objects** | live farm state, WebSocket hub (dashboard + cameras events), device sessions, automation engine |
 | **D1** | relational source of truth (plots, devices, finance, audit) |
-| **KV** | config, feature flags, device registry cache, session metadata |
+| **KV** | feature flags, farm-row cache (~60s), rate limits (login / Grok / mail send). Session is an HttpOnly cookie; D1 stays the ledger. Do not store secrets or tokens in KV. |
 | **R2** | photos, growth timelapses, invoice PDFs, model artifacts, edge telemetry dumps |
 | **Queues** | ingest telemetry, run automations, notify, generate Grok summaries |
 | **Cron Triggers** | schedules (irrigation windows, daily briefing, solar settle) |
+| **Analytics Engine** | cheap counters (login, ingest, mail, Grok) — query in the dashboard, not a second ledger |
 | **Workers AI / optional** | only if needed; primary LLM is xAI |
 | **Cloudflare Stream** (optional later) | recorded clips; do not put raw 24/7 video through a Worker |
-| **Access + Zero Trust** | operator login |
+| **Access + Zero Trust** | optional later; operator login is `/login` + cookie today |
 | **Wrangler** | deploy |
 
 ### Edge + local servers (farm LAN)
@@ -174,7 +175,7 @@ Cloud extras from a vendor are optional. **Local control is mandatory.** If the 
 
 - TypeScript everywhere on Cloudflare
 - Edge agent: TypeScript (Bun) or Python — pick **TypeScript** so Cursor stays in one language
-- Infra: `wrangler.jsonc`, GitHub Actions
+- Infra: `wrangler.jsonc`. Deploy with Wrangler CLI from the farm machine (`npm run deploy`), not GitHub Actions.
 
 ### UI stack
 

@@ -1,3 +1,8 @@
+---
+title: Starlink
+description: Snapshots through the cloud. Live video stays on the farm LAN.
+---
+
 # Starlink bandwidth (M3)
 
 Starlink is the uplink. Edge is the muscle.

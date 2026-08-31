@@ -1,13 +1,14 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  SHARE_DESC,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { isOperator, safeNextPath } from "../lib/auth";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -19,41 +20,39 @@ export async function renderLogin(c: Context<AppEnv>) {
   }
 
   const name = farm?.name ?? "Polje";
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Prijava · ${escapeHtml(name)}</title>
-  <style>${CHASSIS_CSS}
-  .login-box { max-width: 420px; }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(name, slug, defaultSlug)}
-    ${siteNav(slug, defaultSlug)}
-    <span class="pip ok">ADMIN</span>
-  </header>
+  const wxSkin = weatherNow(farm?.timezone ?? "Europe/Zagreb", null);
+  return c.html(`${pageOpen({
+    title: `Sign in · ${name}`,
+    farmName: name,
+    farmSlug: slug,
+    defaultSlug,
+    currentPath: "/login",
+    pipHtml: `<span class="pip ok">ADMIN</span>`,
+    extraHead: shareHead(c.req.url, `Sign in · ${name}`, SHARE_DESC),
+    extraCss: `.login-box { max-width: 420px; }`,
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+  })}
   <main>
-    <h1>Prijava</h1>
-    <p class="sub">Sve stranice su otvorene. Prijava je samo za naredbe — voda, klima, knjiga, pošta.</p>
+    <h1 data-i18n="login_title">Sign in</h1>
+    <p class="sub" data-i18n="login_sub">All pages are open. Sign-in is only for commands — water, climate, ledger, mail.</p>
     <section class="panel login-box">
       <form id="form-login">
         <label for="email">Email</label>
         <input id="email" name="email" type="email" autocomplete="username" required />
-        <label for="password">Lozinka</label>
+        <label for="password" data-i18n="login_password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required />
         <div class="actions">
-          <button class="btn-ghost" type="submit">Otvori admin</button>
+          <button class="btn-ghost" type="submit" data-i18n="login_open">Open admin</button>
         </div>
         <div class="msg" id="msg"></div>
       </form>
     </section>
-    <footer>Cookie 30 dana · tajna u Cloudflareu, ne u gitu</footer>
+    <footer data-i18n="login_footer">Cookie 30 days · secret in Cloudflare, not in git</footer>
   </main>
+  </div>
+  ${bootScripts()}
   <script>
-    ${FARM_SLUG_JS}
     const next = ${JSON.stringify(next)};
     document.getElementById("form-login").onsubmit = async (e) => {
       e.preventDefault();
@@ -71,7 +70,7 @@ export async function renderLogin(c: Context<AppEnv>) {
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error === "unauthorized" ? "Krivi email ili lozinka" : (data.error || res.statusText));
+        if (!res.ok) throw new Error(data.error === "unauthorized" ? t("login_bad") : (data.error || res.statusText));
         location.href = next;
       } catch (err) {
         msg.textContent = String(err.message || err);

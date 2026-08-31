@@ -1,3 +1,8 @@
+---
+title: Local servers
+description: Farm LAN boxes — MQTT, Edge, NVR, LoRa gateway. Starlink is uplink only.
+---
+
 # Local servers (M2–M6)
 
 Farm LAN boxes. Starlink is uplink only.

@@ -14,9 +14,9 @@ MCP / agent: Bearer AGENT_TOKEN
 Edge ingest: Bearer INGEST_TOKEN
 
 Key routes: /v1/health, /v1/overview, /v1/plots, /v1/plantings, /v1/cameras,
-/v1/climate/now, /v1/energy/now, /v1/ledger, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
+/v1/climate/now, /v1/energy/now, /v1/ledger, /v1/plan, /v1/trello, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
 
-Full docs: docs/API.md in the repo.
+Full docs: https://docs.opg-ivanjovic.hr/api
 `;
 
 const DOCS_SAFETY = `# Polje safety policy
@@ -27,6 +27,8 @@ const DOCS_SAFETY = `# Polje safety policy
 4. Every write creates an audit event (who / what / why / before / after).
 5. Never put camera RTSP URLs, tokens, bank data, or exact private GPS in prompts or public docs.
 6. Rain lockout applies to drip, never to frost spray zones.
+
+Full docs: https://docs.opg-ivanjovic.hr/safety
 `;
 
 export type ResourceResult =

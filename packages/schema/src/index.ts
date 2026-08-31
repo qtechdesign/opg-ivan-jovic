@@ -530,6 +530,40 @@ export const GrokChatSchema = z.object({
 });
 export type GrokChat = z.infer<typeof GrokChatSchema>;
 
+export const FarmFlagNameSchema = z.enum([
+  "grok_chat",
+  "grok_briefing",
+  "mail_send",
+  "automations_tick",
+]);
+export type FarmFlagName = z.infer<typeof FarmFlagNameSchema>;
+
+export const FarmFlagsSchema = z.object({
+  grok_chat: z.boolean(),
+  grok_briefing: z.boolean(),
+  mail_send: z.boolean(),
+  automations_tick: z.boolean(),
+});
+export type FarmFlags = z.infer<typeof FarmFlagsSchema>;
+
+export const DEFAULT_FARM_FLAGS: FarmFlags = {
+  grok_chat: true,
+  grok_briefing: true,
+  mail_send: true,
+  automations_tick: true,
+};
+
+export const PatchFarmFlagsSchema = z.object({
+  farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
+  flags: FarmFlagsSchema.partial().refine(
+    (o) => Object.keys(o).length > 0,
+    { message: "at least one flag" }
+  ),
+  confirm: z.literal(true),
+  reason: z.string().min(3).max(500),
+});
+export type PatchFarmFlags = z.infer<typeof PatchFarmFlagsSchema>;
+
 export const BriefingSchema = z.object({
   id: z.string().uuid(),
   farm_id: z.string().uuid(),

@@ -23,7 +23,7 @@ import {
 import { z } from "zod";
 // Tool handlers take `any` after schema.parse (Zod 4 infer noise).
 import { writeAudit } from "../lib/audit";
-import { defaultFarmSlug, getFarmBySlug } from "../lib/farm";
+import { defaultFarmSlug, getFarm } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
 import type { FarmLiveState } from "../do/farm-runtime";
 import { applyClimateSetpoint } from "../lib/climate";
@@ -82,7 +82,7 @@ async function resolveFarm(
   env: Cloudflare.Env,
   slug: string
 ): Promise<Farm | null> {
-  return getFarmBySlug(env.DB, slug || defaultFarmSlug(env));
+  return getFarm(env, slug || defaultFarmSlug(env));
 }
 
 async function getOverview(

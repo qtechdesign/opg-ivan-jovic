@@ -1,8 +1,9 @@
 import { writeAudit } from "./audit";
-import { defaultFarmSlug, getFarmBySlug } from "./farm";
+import { defaultFarmSlug, getFarm } from "./farm";
 import { farmStub } from "../do/farm-runtime";
 import type { ToolActor } from "../mcp/tools";
 import { callXaiText } from "./grok";
+import { flagEnabled, writeMetric } from "./kv";
 
 export type BriefingOptions = {
   farmSlug?: string;
@@ -106,8 +107,12 @@ export async function generateBriefing(
   opts: BriefingOptions
 ): Promise<Record<string, unknown>> {
   const slug = opts.farmSlug || defaultFarmSlug(env);
-  const farm = await getFarmBySlug(env.DB, slug);
+  const farm = await getFarm(env, slug);
   if (!farm) return { error: "farm_not_found", slug };
+
+  if (!(await flagEnabled(env.KV, farm.slug, "grok_briefing"))) {
+    return { error: "flag_disabled", flag: "grok_briefing", slug: farm.slug };
+  }
 
   const { date: localDate } = zagrebLocalParts();
 
@@ -138,7 +143,7 @@ export async function generateBriefing(
     const rollup = await buildRollup(env, farm.id, farm.slug);
     const prompt = `You are the Polje farm operator brain for ${farm.name} (timezone Europe/Zagreb).
 Write a short daily farm briefing from this 24h rollup JSON.
-Do NOT invent actuator actions. Do NOT include secrets, camera URLs, tokens, or bank data.
+Do NOT invent actuator actions. Do NOT include secrets, RTSP URLs, tokens, or bank credentials.
 Respond EXACTLY in this format:
 ===HR===
 (2-5 short sentences in Croatian)
@@ -197,8 +202,9 @@ ${JSON.stringify(rollup)}`;
     after: { id, local_date: localDate, model },
   });
 
-  // Optional notify email
-  const notifyTo = env.OPERATOR_NOTIFY_EMAIL;
+  // Optional notify email (secret; not always present in generated Env)
+  const notifyTo = (env as Cloudflare.Env & { OPERATOR_NOTIFY_EMAIL?: string })
+    .OPERATOR_NOTIFY_EMAIL;
   if (notifyTo && env.EMAIL) {
     try {
       const { sendFarmMail } = await import("./mail");
@@ -215,11 +221,12 @@ ${JSON.stringify(rollup)}`;
     }
   }
 
+  writeMetric(env, "briefing", farm.slug);
   return { ok: true, cached: false, briefing };
 }
 
 export async function getTodayBriefing(env: Cloudflare.Env, farmSlug: string) {
-  const farm = await getFarmBySlug(env.DB, farmSlug);
+  const farm = await getFarm(env, farmSlug);
   if (!farm) return null;
   const { date } = zagrebLocalParts();
   return env.DB.prepare(
@@ -240,8 +247,12 @@ export async function maybeRunMorningBriefing(
   }
 
   const slug = defaultFarmSlug(env);
-  const farm = await getFarmBySlug(env.DB, slug);
+  const farm = await getFarm(env, slug);
   if (!farm) return { ran: false, reason: "farm_not_found" };
+
+  if (!(await flagEnabled(env.KV, farm.slug, "grok_briefing"))) {
+    return { ran: false, reason: "flag_disabled" };
+  }
 
   const existing = await env.DB.prepare(
     `SELECT id FROM briefings WHERE farm_id = ? AND local_date = ?`

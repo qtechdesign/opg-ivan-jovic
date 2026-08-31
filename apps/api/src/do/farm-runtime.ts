@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import type { IngestBatch } from "@polje/schema";
 import { evaluateAutomations } from "../lib/automations";
-import { defaultFarmSlug, getFarmBySlug } from "../lib/farm";
+import { defaultFarmSlug, getFarm } from "../lib/farm";
+import { flagEnabled, writeMetric } from "../lib/kv";
 
 export type MetricKey = string; // `${device_id}:${metric}`
 
@@ -64,6 +65,14 @@ export class FarmRuntime extends DurableObject<Env> {
     state: FarmLiveState,
     opts?: { forceId?: string; forceManual?: boolean }
   ) {
+    if (!opts?.forceId && !opts?.forceManual) {
+      const slug =
+        (await getFarm(this.env, state.farm_id))?.slug ??
+        defaultFarmSlug(this.env);
+      if (!(await flagEnabled(this.env.KV, slug, "automations_tick"))) {
+        return { fired: [] as string[], errors: [] as string[] };
+      }
+    }
     const dwell =
       (await this.ctx.storage.get<Record<string, number>>("dwell")) ?? {};
     const result = await evaluateAutomations(this.env.DB, state, {
@@ -77,6 +86,7 @@ export class FarmRuntime extends DurableObject<Env> {
         farm_id: state.farm_id,
         fired: result.fired,
       });
+      writeMetric(this.env, "automation", state.farm_id, String(result.fired.length));
     }
     return result;
   }
@@ -200,7 +210,7 @@ export class FarmRuntime extends DurableObject<Env> {
       }
 
       const farmRow =
-        (await getFarmBySlug(this.env.DB, batch.farm_id)) ??
+        (await getFarm(this.env, batch.farm_id)) ??
         (await this.env.DB.prepare(
           `SELECT id FROM farms WHERE id = ?`
         )
@@ -234,6 +244,7 @@ export class FarmRuntime extends DurableObject<Env> {
     }
 
     this.broadcast({ type: "ingest", ...state });
+    writeMetric(this.env, "ingest", batch.farm_id, batch.batch_id);
 
     try {
       await this.runAutomations(state);

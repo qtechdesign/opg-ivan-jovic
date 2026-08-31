@@ -53,11 +53,14 @@ export type MailMessageRow = {
 };
 
 export function canonicalAddress(addr: string): string {
-  const trimmed = addr.trim().toLowerCase();
-  const at = trimmed.lastIndexOf("@");
-  if (at < 1) return trimmed;
-  const local = trimmed.slice(0, at).split("+")[0] ?? trimmed;
-  const domain = trimmed.slice(at + 1);
+  let s = addr.trim().toLowerCase().replace(/^mailto:/, "");
+  const angle = /<([^>]+)>/.exec(s);
+  if (angle?.[1]) s = angle[1].trim();
+  s = s.replace(/[<>]/g, "").replace(/"/g, "");
+  const at = s.lastIndexOf("@");
+  if (at < 1) return s;
+  const local = (s.slice(0, at).split("+")[0] ?? s).trim();
+  const domain = s.slice(at + 1).trim();
   return `${local}@${domain}`;
 }
 
@@ -72,6 +75,8 @@ function headerMessageId(raw: string | null | undefined): string | null {
   return v.length > 0 ? v : null;
 }
 
+const AGENT_MAILBOX_ID = "c1000000-0000-4000-8000-000000000001";
+
 export async function getMailboxByAddress(
   db: D1Database,
   address: string
@@ -83,6 +88,45 @@ export async function getMailboxByAddress(
     )
     .bind(canonicalAddress(address))
     .first<MailboxRow>();
+}
+
+/** Create farm@ for the first farm if seed wiped the row. Never bounce routed mail. */
+export async function ensureMailbox(
+  db: D1Database,
+  address: string
+): Promise<MailboxRow | null> {
+  const existing = await getMailboxByAddress(db, address);
+  if (existing) return existing;
+
+  const farm = await db
+    .prepare(`SELECT id FROM farms WHERE slug = 'ivan-jovic'`)
+    .first<{ id: string }>();
+  if (!farm) return null;
+
+  const canonical = canonicalAddress(address);
+  const stored =
+    canonical.endsWith("@opg-ivanjovic.hr") ? canonical : AGENT_MAILBOX_ADDRESS;
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO mailboxes (id, farm_id, address, display_name, kind, created_at)
+       VALUES (?, ?, ?, ?, 'agent', ?)`
+    )
+    .bind(AGENT_MAILBOX_ID, farm.id, AGENT_MAILBOX_ADDRESS, AGENT_MAILBOX_NAME, now)
+    .run();
+  if (stored !== AGENT_MAILBOX_ADDRESS) {
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO mailboxes (id, farm_id, address, display_name, kind, created_at)
+         VALUES (?, ?, ?, ?, 'agent', ?)`
+      )
+      .bind(crypto.randomUUID(), farm.id, stored, AGENT_MAILBOX_NAME, now)
+      .run();
+  }
+  return (
+    (await getMailboxByAddress(db, stored)) ||
+    (await getMailboxByAddress(db, AGENT_MAILBOX_ADDRESS))
+  );
 }
 
 async function findThreadId(
@@ -119,7 +163,7 @@ export async function ingestInboundEmail(
     raw: ArrayBuffer;
   }
 ): Promise<{ id: string; thread_id: string; duplicate: boolean } | { rejected: string }> {
-  const mailbox = await getMailboxByAddress(env.DB, input.envelopeTo);
+  const mailbox = await ensureMailbox(env.DB, input.envelopeTo);
   if (!mailbox) {
     return { rejected: "unknown_mailbox" };
   }

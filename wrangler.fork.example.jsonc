@@ -33,6 +33,19 @@
       "bucket_name": "YOUR-R2-BUCKET"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "YOUR-KV-NAMESPACE-ID",
+      "preview_id": "YOUR-KV-PREVIEW-ID"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "METRICS",
+      "dataset": "polje"
+    }
+  ],
   "queues": {
     "producers": [
       { "binding": "INGEST", "queue": "polje-ingest" }

@@ -1,0 +1,51 @@
+---
+title: Quickstart
+description: Run Polje locally — Worker, D1 seed, optional farm-LAN edge.
+---
+
+**Polje** (`polje` = field) is a farm OS. First tenant is **OPG Ivan Jović** (`farm_id` / slug `ivan-jovic`). Production stays that farm. Local seed also loads example farm `demo-opg`.
+
+## Install
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run seed:local
+npm run dev
+```
+
+Then:
+
+- http://127.0.0.1:8787/
+- http://127.0.0.1:8787/land
+- http://127.0.0.1:8787/water
+- http://127.0.0.1:8787/klima
+- http://127.0.0.1:8787/eyes
+- http://127.0.0.1:8787/frost
+- http://127.0.0.1:8787/ledger
+- http://127.0.0.1:8787/land?farm=demo-opg
+- http://127.0.0.1:8787/v1/overview?farm=ivan-jovic
+
+Copy `.dev.vars.example` — never commit real tokens.
+
+## Local MQTT + Edge (optional)
+
+```bash
+cd deploy/edge
+export INGEST_TOKEN=dev-ingest-token-change-me
+export POLJE_API=http://host.docker.internal:8787
+docker compose up -d mosquitto edge
+docker compose --profile sim up -d sim
+```
+
+See [Local servers](/local-servers/).
+
+## Next
+
+- [Fork for another OPG](/fork/)
+- [HTTP API](/api/)
+- [MCP](/mcp/)
+- [Safety](/safety/)
+
+Live farm console: [opg-ivanjovic.hr](https://opg-ivanjovic.hr).

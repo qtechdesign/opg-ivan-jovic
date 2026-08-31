@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"],
+[data-theme="light"],
+[data-theme="dark"] {
+  --void: #07080a;
+  --void-soft: #101218;
+  --spectral: #f0f0fa;
+  --spectral-dim: #b8b8c6;
+  --hairline: rgba(240, 240, 250, 0.16);
+  --ghost: rgba(240, 240, 250, 0.08);
+  --ghost-border: rgba(240, 240, 250, 0.35);
+  --leaf: #3d8c4a;
+  --hay: #d4a017;
+  --ice: #7ec8e3;
+  --soil: #6b4a2e;
+  --alarm: #c43c2c;
+
+  --sl-font: "IBM Plex Sans", "Bahnschrift", system-ui, sans-serif;
+  --sl-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --sl-color-bg: var(--void);
+  --sl-color-bg-nav: var(--void);
+  --sl-color-bg-sidebar: var(--void);
+  --sl-color-bg-inline-code: var(--void-soft);
+  --sl-color-hairline: var(--hairline);
+  --sl-color-hairline-light: var(--hairline);
+  --sl-color-text: var(--spectral);
+  --sl-color-text-accent: var(--spectral);
+  --sl-color-white: var(--spectral);
+  --sl-color-gray-1: var(--spectral);
+  --sl-color-gray-2: var(--spectral-dim);
+  --sl-color-gray-3: #8c8c9a;
+  --sl-color-gray-4: #5c5c68;
+  --sl-color-gray-5: #2a2a32;
+  --sl-color-gray-6: var(--void-soft);
+  --sl-color-black: var(--void);
+  --sl-color-accent-low: #0d2a14;
+  --sl-color-accent: var(--leaf);
+  --sl-color-accent-high: #7ec48a;
+}
+
+.hero {
+  --sl-color-white: var(--spectral);
+}
+
+.sl-link-button.primary {
+  border-radius: 4px;
+  background: var(--ghost);
+  border: 1px solid var(--ghost-border);
+  color: var(--spectral);
+}
+
+.sl-link-button.primary:hover {
+  background: rgba(240, 240, 250, 0.14);
+}
+
+.sl-markdown-content a {
+  color: var(--ice);
+}
+
+.sl-markdown-content a:hover {
+  color: var(--spectral);
+}

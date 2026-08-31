@@ -6,11 +6,15 @@ House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour
 
 ## Live
 
+Built in public. Guests can read the farm. Sign in only for commands (water, frost, climate, ledger writes, mail send). Cameras are live stills on `/eyes`. The ledger is the public cash-flow book — empty until the OPG starts making money. Tokens, RTSP URLs, and bank credentials stay private.
+
 - https://opg-ivanjovic.hr
 - https://www.opg-ivanjovic.hr
+- https://docs.opg-ivanjovic.hr
 - Debug: https://polje.quiet-lab-19ab.workers.dev
-- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, land at `/land`, water at `/water`, climate at `/klima`, eyes at `/eyes`, frost at `/frost`, hands at `/hands`, money at `/ledger`, MCP at `/mcp`
-- Docs: [`docs/API.md`](docs/API.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/FPS.md`](docs/FPS.md)
+- Console: `/` overview, `/land`, `/water`, `/frost`, `/klima`, `/eyes`, `/hands`, `/ledger`, `/plan`, `/mail`, `/login`
+- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, MCP at `/mcp`, share image at `/og.jpg`
+- Docs: [docs.opg-ivanjovic.hr](https://docs.opg-ivanjovic.hr) · [`docs/API.md`](docs/API.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/FPS.md`](docs/FPS.md)
 
 If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1.1 opg-ivanjovic.hr`) — custom domains are attached and serving.
 
@@ -36,9 +40,8 @@ Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
 | `.dev.vars` (gitignored) | Local Wrangler secrets — copy from `.dev.vars.example` |
 | Cloudflare Secrets | Production — `OPERATOR_PASSWORD`, `OPERATOR_TOKEN`, `INGEST_TOKEN`, `AGENT_TOKEN`, `XAI_API_KEY`. Login email is `OPERATOR_EMAIL` in wrangler vars. |
 
-| GitHub Actions secrets | CI only — `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
-
 Cursor MCP: copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) → `.cursor/mcp.json` with `AGENT_TOKEN`.
+
 ## Quickstart
 
 ```bash
@@ -58,6 +61,8 @@ Then:
 - http://127.0.0.1:8787/eyes
 - http://127.0.0.1:8787/frost
 - http://127.0.0.1:8787/ledger
+- http://127.0.0.1:8787/plan
+- http://127.0.0.1:8787/mail
 - http://127.0.0.1:8787/land?farm=demo-opg
 - http://127.0.0.1:8787/v1/overview?farm=ivan-jovic
 - http://127.0.0.1:8787/v1/irrigation/zones?farm=ivan-jovic
@@ -73,6 +78,20 @@ docker compose --profile sim up -d sim
 ```
 
 See [`docs/LOCAL-SERVERS.md`](docs/LOCAL-SERVERS.md).
+
+Public docs site (Starlight): `npm run docs:dev` → http://localhost:4321. Live: [docs.opg-ivanjovic.hr](https://docs.opg-ivanjovic.hr).
+
+## Deploy (Wrangler CLI)
+
+Production is this machine → Cloudflare. **Not GitHub Actions** (no deploy workflow in this repo).
+
+```bash
+npm run db:migrate:remote   # only when migrations changed
+npm run deploy              # wrangler deploy → opg-ivanjovic.hr
+npm run og:imagine          # xAI Grok Imagine → small JPEG on R2 for WhatsApp/OG
+npm run hero:imagine        # xAI Grok Imagine → overview hero still on R2
+npm run docs:deploy         # docs site only
+```
 
 ## FPS fork (M4)
 

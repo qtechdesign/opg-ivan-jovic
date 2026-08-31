@@ -1,13 +1,13 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -16,108 +16,101 @@ export async function renderFrost(c: Context<AppEnv>) {
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm nije seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       503
     );
   }
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="night" data-wx="clear" id="frost-html" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mraz · ${escapeHtml(farm.name)}</title>
-  <style>${CHASSIS_CSS}
-  main { max-width: 820px; }
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: `Frost · ${farm.name}`,
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/frost",
+    pipHtml: `<span class="pip" id="frost-pip">FROST · —</span>`,
+    extraHead: shareHead(c.req.url, `Frost · ${farm.name}`, "FPS LoRa frost protection. Local failsafe first."),
+    htmlId: "frost-html",
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+    extraCss: `
   .status-big {
     font-size: 28px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--ice, #7ec8e3);
+    color: var(--ice);
     margin: 0 0 8px;
   }
-  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-  .metric { border: 1px solid var(--hairline); border-radius: 4px; padding: 16px; background: color-mix(in oklab, var(--void-soft) 82%, transparent); }
-  .metric .n { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 28px; line-height: 1; }
-  .metric .u { font-size: 12px; letter-spacing: 0.08em; color: var(--spectral-dim); text-transform: uppercase; margin-left: 6px; }
-  .metric .l { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); margin-top: 8px; }
   .btn-ice {
     display: inline-flex; align-items: center; height: 40px; padding: 0 20px;
-    background: var(--ice, #7ec8e3); color: var(--void); border: none; border-radius: 4px;
+    background: var(--ice); color: var(--void); border: none; border-radius: 4px;
     letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 700;
   }
-  html[data-wx="frost"] { --hairline: color-mix(in oklab, var(--ice, #7ec8e3) 45%, transparent); }
-  @media (max-width: 640px) { .metrics { grid-template-columns: 1fr; } }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip" id="frost-pip">MRAZ · —</span>
-  </header>
+`,
+  })}
   <main>
-    <h1>Mraz</h1>
-    <p class="sub">FPS LoRa · lokalni program · led 0–2 °C</p>
+    <h1 data-i18n="frost_title">Frost</h1>
+    <p class="sub" data-i18n="frost_sub">FPS LoRa · local program · ice 0–2 °C</p>
+    <p class="hint" data-i18n="frost_howto">This is FPS LoRa frost protection. Load the program, then ARM with a reason. The local node sprays if temperature drops — Cloudflare is not the safety layer. Open valve also needs confirm.</p>
     <p class="status-big" id="frost-status">—</p>
-    <div class="metrics">
+    <div class="metrics cols-3">
       <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">FPS temp</div></div>
-      <div class="metric"><div><span class="n" id="m-rh">—</span><span class="u">% RH</span></div><div class="l">Vlažnost</div></div>
-      <div class="metric"><div><span class="n" id="m-dp">—</span><span class="u">°C</span></div><div class="l">Točka rose</div></div>
+      <div class="metric"><div><span class="n" id="m-rh">—</span><span class="u">% RH</span></div><div class="l" data-i18n="frost_humidity">Humidity</div></div>
+      <div class="metric"><div><span class="n" id="m-dp">—</span><span class="u">°C</span></div><div class="l" data-i18n="frost_dewpoint">Dew point</div></div>
     </div>
     <section class="panel admin-only">
-      <h2>Program</h2>
+      <h2 data-i18n="frost_program">Program</h2>
       <div class="grid2">
         <div>
-          <label>Prag °C</label>
+          <label data-i18n="frost_threshold">Threshold °C</label>
           <input id="thr" type="number" step="0.1" value="1.5" />
         </div>
         <div>
-          <label>Max spray (s)</label>
+          <label data-i18n="frost_max_spray">Max spray (s)</label>
           <input id="maxsec" type="number" step="30" value="600" />
         </div>
       </div>
-      <label>Razlog (obavezno za ARM)</label>
-      <input id="reason" type="text" placeholder="npr. noćni mraz" maxlength="500" />
+      <label data-i18n="frost_reason_arm">Reason (required to ARM)</label>
+      <input id="reason" type="text" data-i18n-placeholder="frost_reason_ph" placeholder="e.g. night frost" maxlength="500" />
       <div class="actions">
-        <button type="button" class="btn-ghost" id="btn-load">Učitaj program</button>
+        <button type="button" class="btn-ghost" id="btn-load" data-i18n="frost_load">Load program</button>
         <button type="button" class="btn-ice" id="btn-arm">ARM</button>
         <button type="button" class="btn-ghost" id="btn-disarm">DISARM</button>
       </div>
       <p class="msg" id="msg"></p>
     </section>
     <section class="panel admin-only">
-      <h2>Ventil</h2>
+      <h2 data-i18n="frost_valve">Valve</h2>
       <div class="grid2">
         <div>
           <label>max_sec</label>
           <input id="valve-sec" type="number" value="300" min="30" max="3600" />
         </div>
         <div>
-          <label>Razlog</label>
-          <input id="valve-reason" type="text" placeholder="ručno otvaranje" />
+          <label data-i18n="frost_reason">Reason</label>
+          <input id="valve-reason" type="text" data-i18n-placeholder="frost_reason_valve_ph" placeholder="manual open" />
         </div>
       </div>
       <div class="actions">
-        <button type="button" class="btn-ghost" id="btn-valve-propose">Prijedlog</button>
-        <button type="button" class="btn-ice" id="btn-valve-open">Otvori (confirm)</button>
+        <button type="button" class="btn-ghost" id="btn-valve-propose" data-i18n="frost_propose">Propose</button>
+        <button type="button" class="btn-ice" id="btn-valve-open" data-i18n="frost_open">Open (confirm)</button>
       </div>
       <p class="msg" id="valve-msg"></p>
     </section>
     <section class="panel">
-      <h2>Čvorovi</h2>
-      <ul id="nodes"><li class="dim">Učitavanje…</li></ul>
+      <h2 data-i18n="frost_nodes">Nodes</h2>
+      <ul id="nodes"><li class="dim" data-i18n="loading">Loading…</li></ul>
     </section>
     <section class="panel">
-      <h2>Zadnji događaji</h2>
-      <ul id="events"><li class="dim">Nema spray događaja.</li></ul>
+      <h2 data-i18n="frost_events">Recent events</h2>
+      <ul id="events"><li class="dim" data-i18n="frost_no_events">No spray events.</li></ul>
     </section>
     ${OPERATOR_GATE_HTML}
-    <footer>Lokalni failsafe. Cloud nije jedini sloj sigurnosti.</footer>
+    <footer data-i18n="frost_footer">Local failsafe. Cloud is not the only safety layer.</footer>
   </main>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
     function jsonHeaders() {
       return { "Content-Type": "application/json" };
     }
@@ -143,12 +136,13 @@ export async function renderFrost(c: Context<AppEnv>) {
         const data = await res.json();
         const st = (data.status || "idle").toUpperCase();
         elStatus.textContent = st;
-        elPip.textContent = "MRAZ · " + st;
+        elPip.textContent = t("frost_pip", { state: st });
         elPip.className = "pip " + (data.status === "armed" || data.status === "spraying" ? "ok" : "warn");
-        if (data.status === "armed" || data.status === "spraying") {
+        if (data.status === "armed" || data.status === "spraying" || data.status === "watch") {
           elHtml.setAttribute("data-wx", "frost");
+          elHtml.setAttribute("data-force-wx", "frost");
         } else {
-          elHtml.setAttribute("data-wx", "clear");
+          elHtml.removeAttribute("data-force-wx");
         }
         if (data.live?.temp_c != null) elTemp.textContent = Number(data.live.temp_c).toFixed(1);
         if (data.live?.rh != null) elRh.textContent = Number(data.live.rh).toFixed(0);
@@ -159,11 +153,11 @@ export async function renderFrost(c: Context<AppEnv>) {
         }
         const ev = data.recent_events || [];
         if (!ev.length) {
-          elEvents.innerHTML = '<li class="dim">Nema spray događaja.</li>';
+          elEvents.innerHTML = '<li class="dim">' + t("frost_no_events") + "</li>";
         } else {
           elEvents.innerHTML = ev.map((e) => {
             const start = (e.started_at || "").replace("T", " ").slice(0, 16);
-            const end = e.ended_at ? " → " + String(e.ended_at).slice(11, 16) : " (aktivno)";
+            const end = e.ended_at ? " → " + String(e.ended_at).slice(11, 16) : " " + t("frost_active");
             const t = e.min_temp_c != null ? Number(e.min_temp_c).toFixed(1) + "°C" : "";
             return '<li class="row"><span class="name">' + start + end + '</span><span class="meta">' + (e.mode || "") + " " + t + "</span></li>";
           }).join("");
@@ -175,7 +169,7 @@ export async function renderFrost(c: Context<AppEnv>) {
         const data = await res.json();
         const nodes = data.nodes || [];
         if (!nodes.length) {
-          elNodes.innerHTML = '<li class="dim">Nema FPS čvorova — pokreni seed.</li>';
+          elNodes.innerHTML = '<li class="dim">' + t("frost_no_nodes") + "</li>";
         } else {
           elNodes.innerHTML = nodes.map(n => {
             const m = n.metrics || {};
@@ -202,7 +196,7 @@ export async function renderFrost(c: Context<AppEnv>) {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      setMsg(elMsg, res.ok ? "Program učitan → watch" : (data.error || "greška"), !res.ok);
+      setMsg(elMsg, res.ok ? t("frost_program_ok") : (data.error || t("frost_error")), !res.ok);
       refresh();
     };
 
@@ -226,7 +220,7 @@ export async function renderFrost(c: Context<AppEnv>) {
         body: JSON.stringify({ farm_slug: FARM, arm: armFlag, confirm: true, reason }),
       });
       const data = await res.json();
-      setMsg(elMsg, res.ok ? (armFlag ? "ARMED" : "DISARMED") : (data.error || "greška"), !res.ok);
+      setMsg(elMsg, res.ok ? (armFlag ? "ARMED" : "DISARMED") : (data.error || t("frost_error")), !res.ok);
       refresh();
     }
     document.getElementById("btn-arm").onclick = () => arm(true);
@@ -260,11 +254,12 @@ export async function renderFrost(c: Context<AppEnv>) {
         }),
       });
       const data = await res.json();
-      setMsg(elValveMsg, res.ok ? ("sent " + data.command_id) : (data.error || "greška"), !res.ok);
+      setMsg(elValveMsg, res.ok ? ("sent " + data.command_id) : (data.error || t("frost_error")), !res.ok);
     };
 
     refresh();
     setInterval(refresh, 10000);
+    document.addEventListener("polje:lang", () => { refresh(); });
     opRefreshGate();
   </script>
 </body>

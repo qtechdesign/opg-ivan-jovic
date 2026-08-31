@@ -1,0 +1,42 @@
+---
+title: What is Polje
+description: Farm OS for OPG Ivan Jović — public docs so another family farm can fork the same stack.
+template: splash
+hero:
+  title: Polje
+  tagline: Cloud is the brain and the ledger. The field edge is the muscle.
+  actions:
+    - text: Quickstart
+      link: /start/
+      icon: right-arrow
+      variant: primary
+    - text: Fork kit
+      link: /fork/
+      variant: minimal
+    - text: Farm console
+      link: https://opg-ivanjovic.hr
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour. The farm sat unused for ~30 years. This software is the next chapter of that same ground: an operating system for a Croatian family holding (**OPG**).
+
+**Polje** (`polje` = field) is the platform. First tenant: **OPG Ivan Jović**. Local farm servers keep pumps and heaters safe if Starlink or Cloudflare dies. The public site is the remote brain, the ledger, and this documentation.
+
+The full project bible lives in the repo as `OPG-IVAN-JOVIC.md`. This site is not legal advice.
+
+<CardGrid stagger>
+  <Card title="Start" icon="rocket">
+    [Install locally](/start/) and [fork for another OPG](/fork/). Module order is M0–M10 — do not skip to robots.
+  </Card>
+  <Card title="Farm stack" icon="setting">
+    [Edge servers](/local-servers/), [MQTT](/iot/), [FPS frost](/fps/), [hardware](/hardware/), [Starlink](/starlink/).
+  </Card>
+  <Card title="Reference" icon="document">
+    [HTTP API](/api/) on `opg-ivanjovic.hr` and [MCP](/mcp/) for Cursor and Grok.
+  </Card>
+  <Card title="Safety" icon="warning">
+    Local failsafe first. Dangerous writes need `confirm: true` and an audit event. [Policy](/safety/).
+  </Card>
+</CardGrid>

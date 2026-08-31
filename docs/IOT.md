@@ -1,3 +1,8 @@
+---
+title: IoT / MQTT
+description: MQTT topics, payloads, and DeviceDriver names for Polje Edge.
+---
+
 # IoT MQTT topics (M2–M6)
 
 Broker: `mqtt.farm.lan:1883` (see `deploy/edge`).

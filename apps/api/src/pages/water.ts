@@ -1,13 +1,13 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -31,7 +31,7 @@ export async function renderWater(c: Context<AppEnv>) {
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm nije seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       503
     );
   }
@@ -100,14 +100,15 @@ export async function renderWater(c: Context<AppEnv>) {
 
   const zonesHtml =
     zoneViews.length === 0
-      ? `<li class="dim">Nema zona — pokreni seed.</li>`
+      ? `<li class="dim" data-i18n="water_no_zones">No zones — run seed.</li>`
       : zoneViews
           .map((z) => {
-            const kindHr = z.kind === "frost" ? "mraz" : "kap po kap";
+            const kindKey = z.kind === "frost" ? "water_kind_frost" : "water_kind_drip";
+            const kindEn = z.kind === "frost" ? "frost" : "drip";
             const accent = z.kind === "frost" ? "ice" : "leaf";
             const last =
               z.last_run != null
-                ? new Date(z.last_run.started_at).toLocaleString("hr-HR", {
+                ? new Date(z.last_run.started_at).toLocaleString("en-GB", {
                     day: "2-digit",
                     month: "2-digit",
                     hour: "2-digit",
@@ -117,10 +118,10 @@ export async function renderWater(c: Context<AppEnv>) {
             return `<li class="row zone" data-id="${escapeHtml(z.id)}" data-kind="${escapeHtml(z.kind)}" data-default="${z.default_duration_sec}" data-max="${z.max_duration_sec}">
         <div>
           <span class="name">${escapeHtml(z.name)}</span>
-          <span class="kind ${accent}">${kindHr}</span>
-          <div class="meta">uređaj ${escapeHtml(z.device_id)} · zadnje ${escapeHtml(last)}</div>
+          <span class="kind ${accent}" data-i18n="${kindKey}">${kindEn}</span>
+          <div class="meta">device ${escapeHtml(z.device_id)} · last ${escapeHtml(last)}</div>
         </div>
-        <span class="state ${z.state === "running" ? "run" : ""}">${z.state === "running" ? "RADI" : "MIR"}</span>
+        <span class="state ${z.state === "running" ? "run" : ""}" data-i18n="${z.state === "running" ? "water_running" : "water_idle"}">${z.state === "running" ? "RUN" : "IDLE"}</span>
       </li>`;
           })
           .join("");
@@ -128,17 +129,20 @@ export async function renderWater(c: Context<AppEnv>) {
   const options = zoneViews
     .map(
       (z) =>
-        `<option value="${escapeHtml(z.id)}">${escapeHtml(z.name)} (${z.kind === "frost" ? "mraz" : "kap"})</option>`
+        `<option value="${escapeHtml(z.id)}">${escapeHtml(z.name)} (${z.kind === "frost" ? "frost" : "drip"})</option>`
     )
     .join("");
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>POLJE · Voda</title>
-  <style>${CHASSIS_CSS}
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: "POLJE · Water",
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/water",
+    pipHtml: `<span class="pip lock ${rainLock ? "on" : ""}" id="rain-pip" data-i18n="${rainLock ? "rain_locked" : "rain_open"}">${rainLock ? "RAIN · LOCKED" : "RAIN · OPEN"}</span>`,
+    extraHead: shareHead(c.req.url, "POLJE · Water", "Drip and frost line. Edge closes the valve."),
+    extraCss: `
   .kind {
     display: inline-block;
     margin-left: 8px;
@@ -154,70 +158,60 @@ export async function renderWater(c: Context<AppEnv>) {
   .state { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); }
   .state.run { color: var(--leaf); }
   .zone { cursor: default; }
-  label { display: block; margin-top: 12px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); }
-  input, select, textarea {
-    width: 100%; margin-top: 6px; padding: 10px 12px;
-    background: var(--void); color: var(--spectral);
-    border: 1px solid var(--hairline); border-radius: 4px; font: inherit;
-  }
   .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--spectral); }
   .check input { width: auto; margin: 0; }
   .pip.lock::before { background: var(--ice); }
   .pip.lock.on::before { background: var(--alarm); }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip lock ${rainLock ? "on" : ""}" id="rain-pip">KIŠA · ${rainLock ? "ZAKLJUČANO" : "OTVORÉNO"}</span>
-  </header>
+`,
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+  })}
   <main>
-    <h1>Voda</h1>
-    <p class="sub">Kap po kap + mraz linija · Edge zatvara ventil · confirm za pokretanje</p>
+    <h1 data-i18n="water_title">Water</h1>
+    <p class="sub" data-i18n="water_sub">Drip + frost line · Edge closes the valve · confirm to start</p>
+    <p class="hint" data-i18n="water_howto">Viewing is open. Commands need sign-in. Pick a zone, set seconds, write why, tick confirm. Without confirm the cloud only stores a proposal. Rain lockout blocks drip, never an armed frost line. The edge closes the valve on timeout.</p>
 
     <section class="panel">
-      <h2>Zone</h2>
+      <h2 data-i18n="water_zones">Zones</h2>
       <ul id="zones">${zonesHtml}</ul>
     </section>
 
     <section class="panel admin-only">
-      <h2>Pokreni (confirm)</h2>
-      <p class="dim">Bez confirm → samo prijedlog. Kap po kap blokira kišni lockout; mraz ne.</p>
+      <h2 data-i18n="water_run">Start (confirm)</h2>
+      <p class="dim" data-i18n="water_run_hint">Without confirm → proposal only. Drip is blocked by rain lockout; frost is not.</p>
       <form id="form-run">
-        <label for="zone">Zona</label>
+        <label for="zone" data-i18n="water_zone">Zone</label>
         <select id="zone" required>${options}</select>
-        <label for="duration">Trajanje (sek)</label>
+        <label for="duration" data-i18n="water_duration">Duration (sec)</label>
         <input id="duration" type="number" min="30" max="3600" value="600" required />
-        <label for="reason">Razlog (audit)</label>
-        <input id="reason" required minlength="3" maxlength="500" placeholder="npr. vrt suh nakon podneva" />
+        <label for="reason" data-i18n="water_reason">Reason (audit)</label>
+        <input id="reason" required minlength="3" maxlength="500" data-i18n-placeholder="water_reason_ph" placeholder="e.g. garden dry after noon" />
         <label class="check"><input id="confirm" type="checkbox" /> confirm: true</label>
-        <div class="actions"><button class="btn-ghost" type="submit">Pokreni</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="water_start">Start</button></div>
         <div class="msg" id="run-msg"></div>
       </form>
     </section>
 
     <section class="panel admin-only">
-      <h2>Kišni lockout</h2>
-      <p class="dim">Samo za drip. Mraz program (kad dođe M4) nije blokiran.</p>
+      <h2 data-i18n="water_lockout">Rain lockout</h2>
+      <p class="dim" data-i18n="water_lockout_hint">Drip only. Frost program is not blocked.</p>
       <form id="form-lock">
-        <label class="check"><input id="lock-on" type="checkbox" ${rainLock ? "checked" : ""} /> Uključi lockout</label>
-        <label for="lock-reason">Razlog</label>
-        <input id="lock-reason" required minlength="3" maxlength="500" placeholder="npr. kiša danas" />
+        <label class="check"><input id="lock-on" type="checkbox" ${rainLock ? "checked" : ""} /> <span data-i18n="water_lockout_on">Enable lockout</span></label>
+        <label for="lock-reason" data-i18n="water_reason_label">Reason</label>
+        <input id="lock-reason" required minlength="3" maxlength="500" data-i18n-placeholder="water_lockout_ph" placeholder="e.g. rain today" />
         <label class="check"><input id="lock-confirm" type="checkbox" /> confirm: true</label>
-        <div class="actions"><button class="btn-ghost" type="submit">Spremi</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="water_save">Save</button></div>
         <div class="msg" id="lock-msg"></div>
       </form>
     </section>
 
     ${OPERATOR_GATE_HTML}
 
-    <footer>Edge je write-leader · lokalni timeout gasi ventil · Dewline packing kasnije</footer>
+    <footer data-i18n="water_footer">Edge is write-leader · local timeout closes the valve · Dewline packing later</footer>
   </main>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
-
     function setMsg(el, text, err) {
       el.textContent = text;
       el.className = err ? "msg err" : "msg";
@@ -248,14 +242,14 @@ export async function renderWater(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (data.proposal) {
-          setMsg(msg, "Prijedlog (nije pokrenuto). Uključi confirm: true.", false);
+          setMsg(msg, t("water_proposal"), false);
           return;
         }
         if (!res.ok) {
           setMsg(msg, data.error || data.message || ("HTTP " + res.status), true);
           return;
         }
-        setMsg(msg, "Poslano · command " + (data.command_id || "").slice(0, 8), false);
+        setMsg(msg, t("water_sent", { id: (data.command_id || "").slice(0, 8) }), false);
         document.getElementById("confirm").checked = false;
         setTimeout(() => location.reload(), 800);
       } catch (err) {
@@ -280,7 +274,7 @@ export async function renderWater(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (data.proposal) {
-          setMsg(msg, "Prijedlog. Uključi confirm: true.", false);
+          setMsg(msg, t("water_proposal_lock"), false);
           return;
         }
         if (!res.ok) {

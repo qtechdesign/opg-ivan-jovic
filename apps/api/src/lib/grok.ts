@@ -4,7 +4,7 @@ import {
   type ToolContext,
   type ToolResult,
 } from "../mcp/tools";
-import { getFarmBySlug, defaultFarmSlug } from "./farm";
+import { getFarm, defaultFarmSlug } from "./farm";
 import { farmStub } from "../do/farm-runtime";
 
 const XAI_URL = "https://api.x.ai/v1/responses";
@@ -146,7 +146,7 @@ export async function runGrokChat(
   }
 
   const slug = opts.farmSlug || defaultFarmSlug(env);
-  const farm = await getFarmBySlug(env.DB, slug);
+  const farm = await getFarm(env, slug);
   if (!farm) throw new Error("farm_not_found");
 
   const stub = farmStub(env, farm.slug);

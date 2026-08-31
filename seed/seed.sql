@@ -135,3 +135,13 @@ INSERT INTO automations (id, farm_id, name, enabled, risk, trigger_json, action_
     NULL,
     '2026-08-31T00:00:00Z'
   );
+
+INSERT INTO mailboxes (id, farm_id, address, display_name, kind, created_at)
+VALUES (
+  'c1000000-0000-4000-8000-000000000001',
+  'a1000000-0000-4000-8000-000000000001',
+  'farm@opg-ivanjovic.hr',
+  'OPG Ivan Jović',
+  'agent',
+  '2026-08-31T00:00:00Z'
+);

@@ -8,8 +8,10 @@ alwaysApply: false
 
 - Hono + TypeScript on Workers. Config in `wrangler.jsonc` at repo root.
 - Generate bindings with `wrangler types` — never hand-write `Env`.
-- D1 is the relational ledger. Do not add KV / R2 / DO / Queues / Cron until that module.
+- D1 is the relational ledger. KV is bound for feature flags, a short farm-row cache, and rate limits — not sessions (HttpOnly cookie) and not secrets.
+- Do not add Stream / Access / Workers AI / Vectorize unless a later module asks.
 - Secrets via `wrangler secret put` and `.dev.vars` (gitignored). Never hardcode tokens.
 - Public hostnames: `opg-ivanjovic.hr` + `www.opg-ivanjovic.hr` as Worker custom domains.
 - Prefer bindings over Cloudflare REST from inside the Worker.
 - Enable `nodejs_compat` and `observability`. Keep `compatibility_date` current.
+- **Deploy from this machine with Wrangler CLI**, not GitHub Actions. After Worker/API changes: `npm run deploy` (`wrangler deploy`). Schema changes: `npm run db:migrate:remote` then deploy. Docs site: `npm run docs:deploy`. Do not add a GitHub deploy workflow.

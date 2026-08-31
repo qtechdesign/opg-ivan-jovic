@@ -1,10 +1,17 @@
 import { Hono } from "hono";
 import { GrokChatSchema } from "@polje/schema";
 import { requireOperator } from "../lib/auth";
-import { defaultFarmSlug, farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
+import { defaultFarmSlug, farmSlugFromQuery, getFarm } from "../lib/farm";
 import { writeAudit } from "../lib/audit";
 import { runGrokChat } from "../lib/grok";
 import { getTodayBriefing, generateBriefing } from "../lib/briefing";
+import {
+  RL_GROK,
+  consumeRateLimit,
+  flagEnabled,
+  rlGrokKey,
+  writeMetric,
+} from "../lib/kv";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -13,10 +20,6 @@ export const grokApi = new Hono<AppEnv>();
 grokApi.post("/v1/grok/chat", async (c) => {
   const denied = await requireOperator(c);
   if (denied) return denied;
-
-  if (!c.env.XAI_API_KEY) {
-    return c.json({ error: "xai_not_configured" }, 503);
-  }
 
   let body: unknown;
   try {
@@ -30,9 +33,28 @@ grokApi.post("/v1/grok/chat", async (c) => {
     return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
   }
 
-  const farm = await getFarmBySlug(c.env.DB, parsed.data.farm_slug);
+  const farm = await getFarm(c.env, parsed.data.farm_slug);
   if (!farm) {
     return c.json({ error: "farm_not_found", slug: parsed.data.farm_slug }, 404);
+  }
+
+  if (!(await flagEnabled(c.env.KV, farm.slug, "grok_chat"))) {
+    return c.json({ error: "flag_disabled", flag: "grok_chat" }, 403);
+  }
+
+  const rl = await consumeRateLimit(
+    c.env.KV,
+    rlGrokKey(farm.slug),
+    RL_GROK.limit,
+    RL_GROK.windowSec
+  );
+  if (!rl.allowed) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "rate_limited" }, 429);
+  }
+
+  if (!c.env.XAI_API_KEY) {
+    return c.json({ error: "xai_not_configured" }, 503);
   }
 
   try {
@@ -52,6 +74,7 @@ grokApi.post("/v1/grok/chat", async (c) => {
         model: result.model,
       },
     });
+    writeMetric(c.env, "grok", farm.slug);
 
     return c.json({
       farm_id: farm.id,
@@ -72,7 +95,7 @@ grokApi.post("/v1/grok/chat", async (c) => {
 
 grokApi.get("/v1/grok/briefing/today", async (c) => {
   const slug = farmSlugFromQuery(c);
-  const farm = await getFarmBySlug(c.env.DB, slug);
+  const farm = await getFarm(c.env, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
 
   const briefing = await getTodayBriefing(c.env, farm.slug);
@@ -105,6 +128,9 @@ grokApi.post("/v1/grok/briefing", async (c) => {
   }
   if (result.error === "farm_not_found") {
     return c.json(result, 404);
+  }
+  if (result.error === "flag_disabled") {
+    return c.json(result, 403);
   }
   return c.json(result);
 });

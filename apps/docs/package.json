@@ -1,0 +1,20 @@
+{
+  "name": "polje-docs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Public docs for Polje (docs.opg-ivanjovic.hr)",
+  "scripts": {
+    "sync": "node scripts/sync-content.mjs",
+    "predev": "node scripts/sync-content.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/sync-content.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.36.1",
+    "astro": "^5.14.0"
+  }
+}

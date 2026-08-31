@@ -1,14 +1,20 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
   farmPath,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  SHARE_DESC,
+  shareHead,
+  siteFooter,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
+import { weatherNow } from "../lib/weather";
+import { formatEur } from "../lib/money";
+import { heroR2Key, ogR2Key } from "../lib/og";
+import { listBuildPhases, planTotals, type BuildPhase } from "../lib/plan";
+import { IVAN_JOVIC_TRELLO_URL, trelloBoardIdForSlug } from "../lib/trello";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -36,7 +42,7 @@ type MediaRow = {
 export async function renderHome(c: Context<AppEnv>) {
   const { farm, defaultSlug } = await farmFromRequest(c);
 
-  let plotsHtml = "<li class=\"dim\">Nema parcela — pokreni seed.</li>";
+  let plotsHtml = `<li class="dim" data-i18n="home_no_plots">No plots yet — run seed.</li>`;
   if (farm) {
     const { results: plots } = await c.env.DB.prepare(
       `SELECT name, use_type FROM plots WHERE farm_id = ? ORDER BY name`
@@ -62,157 +68,189 @@ export async function renderHome(c: Context<AppEnv>) {
   const status = farm ? "ONLINE" : "UNSEEDED";
   const statusClass = farm ? "ok" : "warn";
 
-  let yardStill = "";
+  const farmSlug = farm?.slug ?? "";
+  const storyKey =
+    farm && farm.slug === defaultSlug ? "home_story_ivan" : "home_story_fork";
+  const storyEn =
+    storyKey === "home_story_ivan"
+      ? "House from 1923 · hay, garden, family · Croatia"
+      : "Template for a fork · Europe/Zagreb";
+  const wxSkin = weatherNow(farm?.timezone ?? "Europe/Zagreb", null);
+
+  let heroInner = `<div class="hero-plate" aria-hidden="true"></div>`;
+  let stillsHtml = "";
   if (farm) {
-    const snap = await c.env.DB.prepare(
+    const generated =
+      (await c.env.MEDIA.head(heroR2Key(farm.slug))) ||
+      (await c.env.MEDIA.head(ogR2Key(farm.slug)));
+    if (generated) {
+      heroInner = `<img src="/hero.jpg?v=full" alt="${escapeHtml(title)}" />`;
+    }
+    const { results: snaps } = await c.env.DB.prepare(
       `SELECT s.camera_id, COALESCE(d.name, s.camera_id) AS name
        FROM camera_snapshots s
        LEFT JOIN devices d ON d.id = s.camera_id
        WHERE s.farm_id = ?
-       ORDER BY s.captured_at DESC LIMIT 1`
+       ORDER BY s.captured_at DESC LIMIT 3`
     )
       .bind(farm.id)
-      .first<{ camera_id: string; name: string }>();
-    if (snap) {
+      .all<{ camera_id: string; name: string }>();
+    if (snaps && snaps.length > 0) {
+      if (!generated) {
+        heroInner = `<img src="/v1/cameras/${escapeHtml(snaps[0].camera_id)}/latest" alt="${escapeHtml(snaps[0].name)}" />`;
+      }
       const eyesHref = farmPath("/eyes", farm.slug, defaultSlug);
-      yardStill = `<section class="panel">
-      <h2>${escapeHtml(snap.name)} · snimka</h2>
-      <a class="thumbs" href="${eyesHref}" style="display:block;max-width:360px">
-        <img src="/v1/cameras/${escapeHtml(snap.camera_id)}/latest" alt="${escapeHtml(snap.name)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border:1px solid var(--hairline);border-radius:4px" />
-      </a>
-    </section>`;
+      stillsHtml = `<div class="live-stills">${snaps
+        .map(
+          (s) =>
+            `<a href="${eyesHref}"><img src="/v1/cameras/${escapeHtml(s.camera_id)}/latest" alt="${escapeHtml(s.name)}" /></a>`
+        )
+        .join("")}</div>`;
     }
   }
+  const hero = `<div class="hero">${heroInner}<div class="hero-scrim"></div><div class="hero-copy"><h1>${escapeHtml(title)}</h1><p class="sub" data-i18n="${storyKey}">${storyEn}</p></div></div>`;
 
-  const farmSlug = farm?.slug ?? "";
-  const story =
-    farm && farm.slug === defaultSlug
-      ? "Kuća iz 1923. · hay, vrt, obitelj · Hrvatska"
-      : "Predložak za fork · Europe/Zagreb";
+  let phases: BuildPhase[] = [];
+  if (farm) {
+    try {
+      phases = await listBuildPhases(c.env.DB, farm.id);
+    } catch {
+      phases = [];
+    }
+  }
+  const totals = planTotals(phases);
+  const phasesHtml =
+    phases.length === 0
+      ? `<li class="dim" data-i18n="home_no_phases">No phases yet — add them on Plan.</li>`
+      : phases
+          .map((p) => {
+            const a = (p.starts_on || "").slice(0, 7);
+            const b = (p.ends_on || "").slice(0, 7);
+            const when = a && b && a !== b ? `${a} → ${b}` : a || b || "—";
+            const eur = p.amount_cents > 0 ? formatEur(p.amount_cents) : "TBD";
+            return `<li class="phase">
+        <div class="when">${escapeHtml(when)}<div class="st ${escapeHtml(p.status)}">${escapeHtml(p.status)}</div></div>
+        <div><span class="name">${escapeHtml(p.title)}</span>${p.body ? `<div class="hint" style="margin:4px 0 0">${escapeHtml(p.body)}</div>` : ""}</div>
+        <span class="eur">${escapeHtml(eur)}</span>
+      </li>`;
+          })
+          .join("");
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farmSlug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>POLJE · ${escapeHtml(title)}</title>
-  <style>${CHASSIS_CSS}
-  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  .metric { border: 1px solid var(--hairline); border-radius: 4px; padding: 16px; background: color-mix(in oklab, var(--void-soft) 82%, transparent); }
-  .metric .n { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 28px; line-height: 1; }
-  .metric .u { font-size: 12px; letter-spacing: 0.08em; color: var(--spectral-dim); text-transform: uppercase; margin-left: 6px; }
-  .metric .l { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); margin-top: 8px; }
-  .pip.down::before { background: var(--alarm); }
-  @media (max-width: 640px) { .metrics { grid-template-columns: 1fr; } }
-  .grok-dock {
-    position: sticky;
-    bottom: 0;
-    border-top: 1px solid var(--hairline);
-    background: color-mix(in oklab, var(--void) 92%, transparent);
-    padding: 10px 16px 14px;
-  }
-  .grok-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    max-width: 960px;
-    margin: 0 auto;
-  }
-  .grok-label {
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    color: var(--spectral-dim);
-  }
-  .grok-brief {
-    flex: 1 1 160px;
-    font-size: 12px;
-    font-family: ui-monospace, "IBM Plex Mono", monospace;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .grok-bar input[type="password"],
-  .grok-bar input[type="text"] {
-    width: auto;
-    flex: 1 1 140px;
-    min-width: 120px;
-    font-family: ui-monospace, "IBM Plex Mono", monospace;
-    font-size: 13px;
-    height: 36px;
-    padding: 0 10px;
-  }
-  .grok-bar button { height: 36px; }
-  .grok-out {
-    max-width: 960px;
-    margin: 10px auto 0;
-    padding: 12px;
-    border: 1px solid var(--hairline);
-    border-radius: 4px;
-    background: var(--void-soft);
-    font-family: ui-monospace, "IBM Plex Mono", monospace;
-    font-size: 13px;
-    white-space: pre-wrap;
-    max-height: 220px;
-    overflow: auto;
-  }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(title, farmSlug, defaultSlug)}
-    ${siteNav(farmSlug || defaultSlug, defaultSlug)}
-    <span class="pip ${statusClass}" id="starlink-pip">STARLINK · —</span>
-  </header>
-  <main>
-    <h1>${escapeHtml(title)}</h1>
-    <p class="sub">${story}</p>
-    <div class="metrics">
-      <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">Temp</div></div>
-      <div class="metric"><div><span class="n" id="m-kw">—</span><span class="u">kW</span></div><div class="l">Solar</div></div>
-      <div class="metric"><div><span class="n" id="m-soil">—</span><span class="u">moist</span></div><div class="l">Tlo</div></div>
-      <div class="metric"><div><span class="n" id="m-edge">—</span><span class="u">seen</span></div><div class="l">Edge</div></div>
+  const planHref = farmPath("/plan", farmSlug, defaultSlug);
+  const trelloUrl = trelloBoardIdForSlug(farmSlug) ? IVAN_JOVIC_TRELLO_URL : null;
+
+  return c.html(`${pageOpen({
+    title: `POLJE · ${title}`,
+    farmName: title,
+    farmSlug,
+    defaultSlug,
+    currentPath: "/",
+    pipHtml: `<span class="pip ${statusClass}" id="starlink-pip">STARLINK · —</span>`,
+    extraHead: shareHead(c.req.url, `POLJE · ${title}`, SHARE_DESC),
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+    bodyClass: "page-home",
+  })}
+    ${hero}
+    <main class="wide">
+    <div class="intro">
+      <div class="metrics">
+        <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">Temp</div></div>
+        <div class="metric"><div><span class="n" id="m-kw">—</span><span class="u">kW</span></div><div class="l">Solar</div></div>
+        <div class="metric"><div><span class="n" id="m-soil">—</span><span class="u">moist</span></div><div class="l" data-i18n="home_metric_soil">Soil</div></div>
+        <div class="metric"><div><span class="n" id="m-edge">—</span><span class="u">seen</span></div><div class="l">Edge</div></div>
+      </div>
+      <p class="pitch" data-i18n="home_pitch">Polje is the operating system for this family holding: land, water, frost, climate, cameras, and the book. Cloud is the brain and the ledger. The edge on the farm is the muscle and the failsafe. We rebuild OPG Ivan Jović in public so another farm can fork the same stack.</p>
     </div>
+    ${stillsHtml ? `<p class="hint" data-i18n="home_live_stills">Live stills</p>${stillsHtml}` : ""}
+
+    <section class="panel howto">
+      <h2 data-i18n="home_why_title">Why this exists</h2>
+      <p class="hint" data-i18n="home_why">The land is older than the software. House from 1923. Unused for decades. This is the next chapter of that same ground — a family OPG, not a generic IoT toy. Pilot: we publish the plan, the API, and the work so neighbours and other farms can follow.</p>
+      <div class="guide">
+        <div class="card"><strong data-i18n="home_why_land_title">Family land</strong><span data-i18n="home_why_land">OPG is the Croatian family holding. Plots, water, frost, cameras, and the book live in one console — named for this yard, hay, and garden.</span></div>
+        <div class="card"><strong data-i18n="home_why_failsafe_title">Local failsafe</strong><span data-i18n="home_why_failsafe">Starlink can drop. Valves and heaters timeout on the farm. Cloud proposes; a human ticks confirm. No confirm = proposal only.</span></div>
+        <div class="card"><strong data-i18n="home_why_open_title">Built in public</strong><span data-i18n="home_why_open">Same work as the public Trello. This console is live — cameras included. The ledger shows cash flow once the OPG starts making money. Tokens and bank credentials stay private.</span></div>
+      </div>
+    </section>
+
+    <section class="panel howto">
+      <h2 data-i18n="home_how_title">How to use this console</h2>
+      <div class="guide">
+        <a href="${farmPath("/water", farmSlug, defaultSlug)}"><strong data-i18n="nav_water">Water</strong><span data-i18n="home_guide_water">Drip and frost valves. Sign in, write why, tick confirm. No confirm = proposal only.</span></a>
+        <a href="${farmPath("/frost", farmSlug, defaultSlug)}"><strong data-i18n="nav_frost">Frost</strong><span data-i18n="home_guide_frost">Load the local program, then ARM. Edge sprays if the night goes to ice. Cloud is not the safety layer.</span></a>
+        <a href="${farmPath("/eyes", farmSlug, defaultSlug)}"><strong data-i18n="nav_eyes">Eyes</strong><span data-i18n="home_guide_eyes">Live cameras: yard, garden, hay. Stills now; stream when the edge has it.</span></a>
+        <a href="${farmPath("/land", farmSlug, defaultSlug)}"><strong data-i18n="nav_land">Land</strong><span data-i18n="home_guide_land">Plots and plantings. The land ledger — names, stages, growth photos.</span></a>
+        <a href="${planHref}"><strong data-i18n="nav_plan">Plan</strong><span data-i18n="home_guide_plan">Build phases with time and EUR. Same board the public Trello follows.</span></a>
+        <a href="${farmPath("/ledger", farmSlug, defaultSlug)}"><strong data-i18n="nav_ledger">Ledger</strong><span data-i18n="home_guide_ledger">Public cash flow in cents EUR. Empty until the OPG starts making money. Not a tax filing.</span></a>
+      </div>
+    </section>
+
     <section class="panel">
-      <h2>Voda</h2>
+      <h2 data-i18n="home_plan_title">Build plan</h2>
+      <p class="hint" data-i18n="home_plan_hint">Procurement and civil works, in order. Amounts are planning envelopes until a quote lands — not a contract.</p>
+      <ul class="timeline">${phasesHtml}</ul>
+      <p class="actions">
+        <a class="btn-ghost" href="${planHref}" data-i18n="home_plan_open">Open the plan builder</a>
+        ${totals.amount_cents > 0 ? `<span class="meta">${escapeHtml(formatEur(totals.amount_cents))}</span>` : ""}
+      </p>
+    </section>
+
+    ${trelloUrl ? `<section class="panel">
+      <h2 data-i18n="home_trello_title">Public Trello</h2>
+      <p class="hint" data-i18n="home_trello_hint">Follow the same work on the public board. Polje reads lists; writes stay on Trello.</p>
+      <div id="trello-live" class="trello-cols"></div>
+      <p class="hint"><a href="${trelloUrl}" rel="noreferrer">${trelloUrl}</a></p>
+      <p class="actions"><a class="btn-ghost" href="${trelloUrl}" rel="noreferrer" data-i18n="home_trello_open">Open board</a></p>
+    </section>` : ""}
+
+    <div class="split">
+    <section class="panel">
+      <h2 data-i18n="home_water">Water</h2>
       <ul>
-        <li class="row"><span class="name" id="water-lock">Kišni lockout · —</span><span class="meta"><a href="/water">otvori</a></span></li>
-        <li class="row"><span class="name" id="water-last">Zadnje kap · —</span><span class="meta" id="water-state">—</span></li>
+        <li class="row"><span class="name" id="water-lock">Rain lockout · —</span><span class="meta"><a href="/water" data-i18n="home_open">open</a></span></li>
+        <li class="row"><span class="name" id="water-last">Last drip · —</span><span class="meta" id="water-state">—</span></li>
       </ul>
     </section>
     <section class="panel">
-      <h2>Parcele</h2>
+      <h2 data-i18n="home_plots">Plots</h2>
       <ul>${plotsHtml}</ul>
     </section>
-    ${yardStill}
+    </div>
     <p class="actions">
-      <a class="btn-ghost" href="${farmPath("/klima", farmSlug, defaultSlug)}">Klima</a>
-      <a class="btn-ghost" href="${farmPath("/water", farmSlug, defaultSlug)}">Voda</a>
-      <a class="btn-ghost" href="${farmPath("/eyes", farmSlug, defaultSlug)}">Pogled na farme</a>
-      <a class="btn-ghost" href="${farmPath("/land", farmSlug, defaultSlug)}">Zemlja</a>
+      <a class="btn-ghost" href="${farmPath("/klima", farmSlug, defaultSlug)}" data-i18n="home_klima">Climate</a>
+      <a class="btn-ghost" href="${farmPath("/water", farmSlug, defaultSlug)}" data-i18n="home_water">Water</a>
+      <a class="btn-ghost" href="${farmPath("/eyes", farmSlug, defaultSlug)}" data-i18n="home_eyes">View the farm</a>
+      <a class="btn-ghost" href="${farmPath("/land", farmSlug, defaultSlug)}" data-i18n="home_land">Land</a>
     </p>
-    <footer>Polje is the field. The field was here first. · <a href="/login">Admin</a></footer>
+    ${siteFooter()}
   </main>
   <aside id="grok-dock" class="grok-dock" aria-label="Grok">
     <div class="grok-bar">
       <span class="grok-label">GROK</span>
       <span id="grok-brief" class="grok-brief dim"></span>
-      <input id="grok-input" class="admin-only" type="text" autocomplete="off" placeholder="Pitaj farmu…" />
-      <button type="button" class="btn-ghost admin-only" id="grok-send">Šalji</button>
+      <input id="grok-input" class="admin-only" type="text" autocomplete="off" data-i18n-placeholder="grok_placeholder" placeholder="Ask the farm…" />
+      <button type="button" class="btn-ghost admin-only" id="grok-send" data-i18n="grok_send">Send</button>
     </div>
     <pre id="grok-out" class="grok-out" hidden></pre>
   </aside>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
     const pip = document.getElementById("starlink-pip");
     const elTemp = document.getElementById("m-temp");
     const elKw = document.getElementById("m-kw");
     const elSoil = document.getElementById("m-soil");
     const elEdge = document.getElementById("m-edge");
 
+    let lastLive = null;
+    let lastEnergy = null;
+    let lastIrr = null;
+
     function applyLive(live, energy) {
       if (!live) return;
+      lastLive = live;
+      if (energy !== undefined) lastEnergy = energy;
       const star = (live.starlink || "unknown").toUpperCase();
       pip.textContent = "STARLINK · " + star;
       pip.className = "pip " + (live.starlink === "up" ? "ok" : live.starlink === "down" ? "down" : "warn");
@@ -228,8 +266,23 @@ export async function renderHome(c: Context<AppEnv>) {
         elKw.textContent = (Number(watts.value) / 1000).toFixed(2);
       }
       elEdge.textContent = live.edge_seen_at
-        ? new Date(live.edge_seen_at).toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        ? new Date(live.edge_seen_at).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit", second: "2-digit" })
         : "—";
+    }
+
+    function applyWater(irr) {
+      const elLock = document.getElementById("water-lock");
+      const elLast = document.getElementById("water-last");
+      const elState = document.getElementById("water-state");
+      if (!irr || !elLock) return;
+      elLock.textContent = t("home_rain_lock", { state: irr.rain_lockout ? "ON" : "OFF" });
+      const drip = (irr.zones || []).find(z => z.kind === "drip");
+      if (elState && drip) elState.textContent = drip.state || "idle";
+      if (elLast && irr.last_drip) {
+        elLast.textContent = t("home_last_drip", { when: new Date(irr.last_drip.started_at).toLocaleString(loc()) });
+      } else if (elLast) {
+        elLast.textContent = t("home_last_drip", { when: "—" });
+      }
     }
 
     async function refresh() {
@@ -237,25 +290,38 @@ export async function renderHome(c: Context<AppEnv>) {
         const res = await fetch("/v1/overview?farm=" + encodeURIComponent(FARM));
         const data = await res.json();
         applyLive(data.live, data.energy);
-        const irr = data.irrigation;
-        const elLock = document.getElementById("water-lock");
-        const elLast = document.getElementById("water-last");
-        const elState = document.getElementById("water-state");
-        if (irr && elLock) {
-          elLock.textContent = "Kišni lockout · " + (irr.rain_lockout ? "ON" : "OFF");
-          const drip = (irr.zones || []).find(z => z.kind === "drip");
-          if (elState && drip) elState.textContent = drip.state || "idle";
-          if (elLast && irr.last_drip) {
-            elLast.textContent = "Zadnje kap · " + new Date(irr.last_drip.started_at).toLocaleString("hr-HR");
-          } else if (elLast) {
-            elLast.textContent = "Zadnje kap · —";
-          }
-        }
+        lastIrr = data.irrigation;
+        applyWater(lastIrr);
       } catch (e) { console.warn(e); }
     }
 
     refresh();
     setInterval(refresh, 15000);
+
+    (function trelloLive() {
+      const host = document.getElementById("trello-live");
+      if (!host) return;
+      function esc(s) {
+        return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      }
+      fetch("/v1/trello?farm=" + encodeURIComponent(FARM))
+        .then((r) => r.json())
+        .then((data) => {
+          const lists = (data.board && data.board.lists) || [];
+          const cols = lists.filter((l) => (l.cards || []).length).slice(0, 4);
+          if (!cols.length) return;
+          host.innerHTML = cols
+            .map((l) => {
+              const cards = (l.cards || [])
+                .slice(0, 6)
+                .map((c) => '<li class="row"><a href="' + esc(c.url) + '" rel="noreferrer">' + esc(c.name) + "</a></li>")
+                .join("");
+              return '<div class="trello-col"><h3>' + esc(l.name) + "</h3><ul>" + cards + "</ul></div>";
+            })
+            .join("");
+        })
+        .catch(() => {});
+    })();
 
     try {
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -277,17 +343,24 @@ export async function renderHome(c: Context<AppEnv>) {
       const send = document.getElementById("grok-send");
       if (!inp || !send || !out || !brief) return;
 
+      let lastBriefing = null;
+      function showBriefing(d) {
+        lastBriefing = d;
+        if (d && (d.body_en || d.body_hr)) {
+          const body = LANG === "hr"
+            ? (d.body_hr || d.body_en)
+            : (d.body_en || d.body_hr);
+          brief.textContent = body.slice(0, 120) + (body.length > 120 ? "…" : "");
+          brief.title = (d.body_en || "") + "\\n\\n" + (d.body_hr || "");
+        } else {
+          brief.textContent = t("grok_no_briefing");
+        }
+      }
       fetch("/v1/grok/briefing/today?farm=" + encodeURIComponent(FARM))
         .then((r) => r.json())
-        .then((d) => {
-          if (d.briefing && d.briefing.body_hr) {
-            brief.textContent = d.briefing.body_hr.slice(0, 120) + (d.briefing.body_hr.length > 120 ? "…" : "");
-            brief.title = d.briefing.body_hr + "\\n\\n" + (d.briefing.body_en || "");
-          } else {
-            brief.textContent = "nema briefinga danas";
-          }
-        })
+        .then((d) => showBriefing(d.briefing || null))
         .catch(() => { brief.textContent = ""; });
+      document.addEventListener("polje:lang", () => { if (lastBriefing !== undefined) showBriefing(lastBriefing); });
 
       async function ask() {
         const message = (inp.value || "").trim();
@@ -304,11 +377,11 @@ export async function renderHome(c: Context<AppEnv>) {
           });
           const data = await res.json();
           if (res.status === 401) {
-            out.textContent = "Prijavi se (Admin) pa pitaj.";
+            out.textContent = t("grok_login");
           } else if (!res.ok) {
             out.textContent = data.error || ("HTTP " + res.status);
           } else {
-            out.textContent = data.reply || "(prazno)";
+            out.textContent = data.reply || t("grok_empty");
           }
         } catch (e) {
           out.textContent = String(e);
@@ -320,6 +393,10 @@ export async function renderHome(c: Context<AppEnv>) {
         if (e.key === "Enter") ask();
       });
     })();
+    document.addEventListener("polje:lang", () => {
+      if (lastLive) applyLive(lastLive, lastEnergy);
+      if (lastIrr) applyWater(lastIrr);
+    });
     opRefreshGate();
   </script>
 </body>
@@ -331,7 +408,7 @@ export async function renderLand(c: Context<AppEnv>) {
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm not seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       404
     );
   }
@@ -389,7 +466,7 @@ export async function renderLand(c: Context<AppEnv>) {
             const kids = byPlot.get(plot.id) ?? [];
             const nest =
               kids.length === 0
-                ? `<ul class="nest"><li class="dim">Nema sađenja</li></ul>`
+                ? `<ul class="nest"><li class="dim" data-i18n="land_no_plantings">No plantings</li></ul>`
                 : `<ul class="nest">${kids
                     .map(
                       (k) =>
@@ -409,7 +486,7 @@ export async function renderLand(c: Context<AppEnv>) {
             </li>`;
           })
           .join("")
-      : `<li class="dim">Nema parcela</li>`;
+      : `<li class="dim" data-i18n="land_no_plots">No plots</li>`;
 
   const thumbs =
     media && media.length > 0
@@ -423,42 +500,45 @@ export async function renderLand(c: Context<AppEnv>) {
               )}" loading="lazy" /></a>`
           )
           .join("")
-      : `<p class="dim">Još nema fotografija rasta.</p>`;
+      : `<p class="dim" data-i18n="land_no_photos">No growth photos yet.</p>`;
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>POLJE · Zemlja</title>
-  <style>${CHASSIS_CSS}</style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip ok">LAND</span>
-  </header>
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: "POLJE · Land",
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/land",
+    pipHtml: `<span class="pip ok">LAND</span>`,
+    extraHead: shareHead(c.req.url, "POLJE · Land", "Plots and plantings · OPG Ivan Jović."),
+    extraCss: `
+  .nest { margin: 0 0 8px 16px; }
+  .status { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); }
+`,
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+  })}
   <main>
-    <h1>Zemlja</h1>
-    <p class="sub">Ledger parcela i sađenja · ${escapeHtml(farm.name)}</p>
+    <h1 data-i18n="land_title">Land</h1>
+    <p class="sub"><span data-i18n="land_plots">Plots and plantings</span> · ${escapeHtml(farm.name)}</p>
+    <p class="hint" data-i18n="land_howto">Plots and plantings are the land ledger. Viewing is open. Sign in to add a plot, planting, stage, or growth photo.</p>
 
     ${OPERATOR_GATE_HTML}
 
 
     <section class="panel">
-      <h2>Parcele i sađenja</h2>
+      <h2 data-i18n="land_plots">Plots and plantings</h2>
       <ul>${plotsHtml}</ul>
     </section>
 
     <section class="panel admin-only">
-      <h2>Nova parcela</h2>
+      <h2 data-i18n="land_new_plot">New plot</h2>
       <form id="form-plot">
-        <label for="plot-name">Naziv</label>
+        <label for="plot-name" data-i18n="land_name">Name</label>
         <input id="plot-name" name="name" required maxlength="120" />
         <div class="grid2">
           <div>
-            <label for="plot-use">Tip</label>
+            <label for="plot-use" data-i18n="land_type">Type</label>
             <select id="plot-use" name="use_type">
               <option value="yard">yard</option>
               <option value="hay">hay</option>
@@ -470,35 +550,35 @@ export async function renderLand(c: Context<AppEnv>) {
             </select>
           </div>
           <div>
-            <label for="plot-ha">Hektari (opcionalno)</label>
+            <label for="plot-ha" data-i18n="land_hectares">Hectares (optional)</label>
             <input id="plot-ha" name="hectares" type="number" step="0.01" min="0" />
           </div>
         </div>
-        <label for="plot-notes">Bilješke</label>
+        <label for="plot-notes" data-i18n="land_notes">Notes</label>
         <textarea id="plot-notes" name="notes" maxlength="2000"></textarea>
-        <div class="actions"><button class="btn-ghost" type="submit">Spremi parcelu</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="land_save_plot">Save plot</button></div>
         <div class="msg" id="plot-msg"></div>
       </form>
     </section>
 
     <section class="panel admin-only">
-      <h2>Novo sađenje</h2>
+      <h2 data-i18n="land_new_planting">New planting</h2>
       <form id="form-planting">
-        <label for="plant-plot">Parcela</label>
+        <label for="plant-plot" data-i18n="land_plot">Plot</label>
         <select id="plant-plot" name="plot_id" required>${plotOptions}</select>
         <div class="grid2">
           <div>
-            <label for="plant-crop">Usjev</label>
+            <label for="plant-crop" data-i18n="land_crop">Crop</label>
             <input id="plant-crop" name="crop" required maxlength="120" />
           </div>
           <div>
-            <label for="plant-variety">Sorta</label>
+            <label for="plant-variety" data-i18n="land_variety">Variety</label>
             <input id="plant-variety" name="variety" maxlength="120" />
           </div>
         </div>
         <div class="grid2">
           <div>
-            <label for="plant-stage">Faza</label>
+            <label for="plant-stage" data-i18n="land_stage">Stage</label>
             <select id="plant-stage" name="stage">
               <option value="planned">planned</option>
               <option value="seeded">seeded</option>
@@ -508,21 +588,21 @@ export async function renderLand(c: Context<AppEnv>) {
             </select>
           </div>
           <div>
-            <label for="plant-on">Posađeno (ISO datum)</label>
+            <label for="plant-on" data-i18n="land_planted">Planted (ISO date)</label>
             <input id="plant-on" name="planted_on" placeholder="2026-08-31" />
           </div>
         </div>
-        <div class="actions"><button class="btn-ghost" type="submit">Spremi sađenje</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="land_save_planting">Save planting</button></div>
         <div class="msg" id="plant-msg"></div>
       </form>
     </section>
 
     <section class="panel admin-only">
-      <h2>Ažuriraj fazu</h2>
+      <h2 data-i18n="land_update_stage">Update stage</h2>
       <form id="form-patch">
-        <label for="patch-id">Sađenje</label>
+        <label for="patch-id" data-i18n="land_planting">Planting</label>
         <select id="patch-id" name="id" required>${plantingOptions}</select>
-        <label for="patch-stage">Nova faza</label>
+        <label for="patch-stage" data-i18n="land_new_stage">New stage</label>
         <select id="patch-stage" name="stage">
           <option value="planned">planned</option>
           <option value="seeded">seeded</option>
@@ -530,29 +610,29 @@ export async function renderLand(c: Context<AppEnv>) {
           <option value="harvest">harvest</option>
           <option value="fallow">fallow</option>
         </select>
-        <label for="patch-yield">Prinos kg (opcionalno)</label>
+        <label for="patch-yield" data-i18n="land_yield">Yield kg (optional)</label>
         <input id="patch-yield" name="yield_kg" type="number" step="0.1" min="0" />
-        <div class="actions"><button class="btn-ghost" type="submit">Ažuriraj</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="land_update">Update</button></div>
         <div class="msg" id="patch-msg"></div>
       </form>
     </section>
 
     <section class="panel">
-      <h2>Fotografija rasta</h2>
+      <h2 data-i18n="land_growth_photo">Growth photo</h2>
       <form id="form-media" class="admin-only">
         <label for="media-file">JPEG / PNG / WebP ≤ 5 MB</label>
         <input id="media-file" name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
-        <label for="media-plot">Parcela (opcionalno)</label>
+        <label for="media-plot" data-i18n="land_plot_opt">Plot (optional)</label>
         <select id="media-plot" name="plot_id">
           <option value="">—</option>
           ${plotOptions}
         </select>
-        <label for="media-planting">Sađenje (opcionalno)</label>
+        <label for="media-planting" data-i18n="land_planting_opt">Planting (optional)</label>
         <select id="media-planting" name="planting_id">
           <option value="">—</option>
           ${plantingOptions}
         </select>
-        <label for="media-caption">Opis</label>
+        <label for="media-caption" data-i18n="land_caption">Caption</label>
         <input id="media-caption" name="caption" maxlength="500" />
         <div class="actions"><button class="btn-ghost" type="submit">Upload</button></div>
         <div class="msg" id="media-msg"></div>
@@ -560,12 +640,11 @@ export async function renderLand(c: Context<AppEnv>) {
       <div class="thumbs">${thumbs}</div>
     </section>
 
-    <footer>Polje is the field. The field was here first.</footer>
+    ${siteFooter()}
   </main>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
-
     function jsonHeaders() {
       return { "Content-Type": "application/json" };
     }
@@ -596,7 +675,7 @@ export async function renderLand(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
-        setMsg(msg, "Parcela spremljena · " + data.id);
+        setMsg(msg, t("land_plot_saved", { id: data.id }));
         location.reload();
       } catch (err) {
         setMsg(msg, String(err.message || err), true);
@@ -622,7 +701,7 @@ export async function renderLand(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
-        setMsg(msg, "Sađenje spremljeno · " + data.id);
+        setMsg(msg, t("land_planting_saved", { id: data.id }));
         location.reload();
       } catch (err) {
         setMsg(msg, String(err.message || err), true);
@@ -647,7 +726,7 @@ export async function renderLand(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
-        setMsg(msg, "Ažurirano · " + (data.stage || ""));
+        setMsg(msg, t("land_updated", { stage: data.stage || "" }));
         location.reload();
       } catch (err) {
         setMsg(msg, String(err.message || err), true);
@@ -659,7 +738,7 @@ export async function renderLand(c: Context<AppEnv>) {
       const msg = document.getElementById("media-msg");
       const fd = new FormData();
       const file = document.getElementById("media-file").files[0];
-      if (!file) return setMsg(msg, "Odaberi datoteku", true);
+      if (!file) return setMsg(msg, t("land_pick_file"), true);
       fd.append("file", file);
       fd.append("farm_slug", FARM);
       const plot = document.getElementById("media-plot").value;

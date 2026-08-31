@@ -1,0 +1,11 @@
+.astro/
+dist/
+src/content/docs/api.md
+src/content/docs/mcp.md
+src/content/docs/fork.md
+src/content/docs/roadmap.md
+src/content/docs/local-servers.md
+src/content/docs/iot.md
+src/content/docs/fps.md
+src/content/docs/hardware.md
+src/content/docs/starlink.md

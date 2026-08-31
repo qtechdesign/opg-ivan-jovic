@@ -1,13 +1,13 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -42,7 +42,7 @@ export async function renderHands(c: Context<AppEnv>) {
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm nije seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       503
     );
   }
@@ -86,7 +86,7 @@ export async function renderHands(c: Context<AppEnv>) {
 
   const autoHtml =
     autos.length === 0
-      ? `<li class="dim">Nema automatizacija — pokreni seed / migraciju M9.</li>`
+      ? `<li class="dim" data-i18n="hands_no_autos">No automations — run seed / M9 migration.</li>`
       : autos
           .map((a) => {
             const pip = a.enabled ? "ok" : "warn";
@@ -96,20 +96,20 @@ export async function renderHands(c: Context<AppEnv>) {
                 : a.risk === "low"
                   ? "risk-low"
                   : "risk-medium";
-            return `<li class="row" data-id="${escapeHtml(a.id)}">
+            return `<li class="row hands-row" data-id="${escapeHtml(a.id)}">
         <span>
           <span class="pip ${pip}" style="margin-right:8px">${a.enabled ? "ON" : "OFF"}</span>
           <span class="name">${escapeHtml(a.name)}</span>
           <span class="meta ${riskClass}"> · ${escapeHtml(a.risk)}</span>
-          ${a.last_fired_at ? `<span class="meta"> · zadnje ${escapeHtml(a.last_fired_at)}</span>` : ""}
+          ${a.last_fired_at ? `<span class="meta"> · last ${escapeHtml(a.last_fired_at)}</span>` : ""}
           ${a.last_error ? `<span class="meta risk-high"> · ${escapeHtml(a.last_error)}</span>` : ""}
         </span>
         <span class="actions admin-only" style="margin:0">
-          <button type="button" class="btn-ghost btn-fire" data-id="${escapeHtml(a.id)}">Pokreni</button>
+          <button type="button" class="btn-ghost btn-fire" data-id="${escapeHtml(a.id)}" data-i18n="hands_fire">Fire</button>
           ${
             a.enabled
-              ? `<button type="button" class="btn-ghost btn-disable" data-id="${escapeHtml(a.id)}">Isključi</button>`
-              : `<button type="button" class="btn-alarm btn-enable" data-id="${escapeHtml(a.id)}" data-risk="${escapeHtml(a.risk)}">Uključi</button>`
+              ? `<button type="button" class="btn-ghost btn-disable" data-id="${escapeHtml(a.id)}" data-i18n="hands_disable">Disable</button>`
+              : `<button type="button" class="btn-alarm btn-enable" data-id="${escapeHtml(a.id)}" data-risk="${escapeHtml(a.risk)}" data-i18n="hands_enable">Enable</button>`
           }
         </span>
       </li>`;
@@ -118,10 +118,10 @@ export async function renderHands(c: Context<AppEnv>) {
 
   const jobsHtml =
     jobs.length === 0
-      ? `<li class="dim">Red poslova prazan.</li>`
+      ? `<li class="dim" data-i18n="hands_no_jobs">Job queue empty.</li>`
       : jobs
           .map(
-            (j) => `<li class="row" data-job="${escapeHtml(j.id)}">
+            (j) => `<li class="row hands-row" data-job="${escapeHtml(j.id)}">
         <span>
           <span class="name">${escapeHtml(j.kind)}</span>
           <span class="meta"> · ${escapeHtml(j.status)}</span>
@@ -130,10 +130,10 @@ export async function renderHands(c: Context<AppEnv>) {
         <span class="actions admin-only" style="margin:0">
           ${
             j.status === "proposed"
-              ? `<button type="button" class="btn-alarm btn-job-confirm" data-id="${escapeHtml(j.id)}">Potvrdi</button>
-                 <button type="button" class="btn-ghost btn-job-cancel" data-id="${escapeHtml(j.id)}">Otkaži</button>`
+              ? `<button type="button" class="btn-alarm btn-job-confirm" data-id="${escapeHtml(j.id)}" data-i18n="hands_confirm">Confirm</button>
+                 <button type="button" class="btn-ghost btn-job-cancel" data-id="${escapeHtml(j.id)}" data-i18n="hands_cancel">Cancel</button>`
               : j.status === "queued" || j.status === "confirmed"
-                ? `<button type="button" class="btn-ghost btn-job-cancel" data-id="${escapeHtml(j.id)}">Otkaži</button>`
+                ? `<button type="button" class="btn-ghost btn-job-cancel" data-id="${escapeHtml(j.id)}" data-i18n="hands_cancel">Cancel</button>`
                 : ""
           }
         </span>
@@ -143,62 +143,59 @@ export async function renderHands(c: Context<AppEnv>) {
 
   const proposedHtml =
     proposed.length === 0
-      ? `<li class="dim">Nema predloženih naredbi.</li>`
+      ? `<li class="dim" data-i18n="hands_no_cmds">No proposed commands.</li>`
       : proposed
           .map(
-            (p) => `<li class="row">
+            (p) => `<li class="row hands-row">
         <span>
           <span class="name">${escapeHtml(p.action)}</span>
           <span class="meta"> · ${escapeHtml(p.device_id)}</span>
         </span>
         <span class="actions admin-only" style="margin:0">
-          <button type="button" class="btn-alarm btn-cmd-confirm" data-id="${escapeHtml(p.id)}">Potvrdi</button>
+          <button type="button" class="btn-alarm btn-cmd-confirm" data-id="${escapeHtml(p.id)}" data-i18n="hands_confirm">Confirm</button>
         </span>
       </li>`
           )
           .join("");
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>POLJE · Ruke</title>
-  <style>${CHASSIS_CSS}
-  main { max-width: 960px; }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip ok">RUKE</span>
-  </header>
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: "POLJE · Hands",
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/hands",
+    pipHtml: `<span class="pip ok">HANDS</span>`,
+    extraHead: shareHead(c.req.url, "POLJE · Hands", "Automations and jobs. Cloud proposes. Human confirms water and metal."),
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+  })}
   <main>
-    <h1>Ruke</h1>
-    <p class="sub">Automatizacije + red poslova · voda / toplina / metal treba confirm · ${escapeHtml(farm.name)}</p>
+    <h1 data-i18n="hands_title">Hands</h1>
+    <p class="sub"><span data-i18n="hands_autos">Automations</span> + job queue · ${escapeHtml(farm.name)}</p>
+    <p class="hint" data-i18n="hands_howto">Automations and the job queue. High-risk rules stay off until you enable with confirm + reason. Cloud proposes; you confirm water and metal.</p>
 
     ${OPERATOR_GATE_HTML}
 
     <section class="panel">
-      <h2>Automatizacije</h2>
-      <p class="dim">High/medium risk se ne uključuje bez confirm:true + razlog. Seed pravila su isključena.</p>
+      <h2 data-i18n="hands_autos">Automations</h2>
+      <p class="dim" data-i18n="hands_autos_hint">High/medium risk does not enable without confirm:true + reason. Seed rules start off.</p>
       <ul id="auto-list">${autoHtml}</ul>
       <div class="admin-only">
-      <label for="enable-reason">Razlog (za uključivanje)</label>
-      <input id="enable-reason" maxlength="500" placeholder="npr. test rule overnight" />
+      <label for="enable-reason" data-i18n="hands_enable_reason">Reason (to enable)</label>
+      <input id="enable-reason" maxlength="500" placeholder="e.g. test rule overnight" />
       <label><input id="enable-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
       <div class="msg" id="auto-msg"></div>
       </div>
     </section>
 
     <section class="panel">
-      <h2>Red poslova (robot / AI)</h2>
+      <h2 data-i18n="hands_jobs">Job queue (robot / AI)</h2>
       <ul id="job-list">${jobsHtml}</ul>
       <div class="admin-only">
-      <h2 style="margin-top:24px">Novi posao</h2>
+      <h2 style="margin-top:24px" data-i18n="hands_new_job">New job</h2>
       <form id="form-job">
-        <label for="job-kind">Vrsta</label>
+        <label for="job-kind" data-i18n="hands_kind">Kind</label>
         <select id="job-kind">
           <option value="robot.mow">robot.mow</option>
           <option value="robot.inspect">robot.inspect</option>
@@ -206,32 +203,31 @@ export async function renderHands(c: Context<AppEnv>) {
           <option value="scene">scene</option>
           <option value="note">note</option>
         </select>
-        <label for="job-reason">Napomena</label>
-        <input id="job-reason" maxlength="500" placeholder="opcionalno" />
-        <div class="actions"><button class="btn-ghost" type="submit">Stvori (proposed)</button></div>
+        <label for="job-reason" data-i18n="hands_note">Note</label>
+        <input id="job-reason" maxlength="500" data-i18n-placeholder="hands_optional" placeholder="optional" />
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="hands_create">Create (proposed)</button></div>
       </form>
       <div class="msg" id="job-msg"></div>
       </div>
     </section>
 
     <section class="panel">
-      <h2>Predložene naredbe</h2>
-      <p class="dim">Voda / aktuatori ostaju proposed dok ne potvrdiš. Edge izvršava samo snapshot.take.</p>
+      <h2 data-i18n="hands_proposed">Proposed commands</h2>
+      <p class="dim" data-i18n="hands_proposed_hint">Water / actuators stay proposed until you confirm. Edge only executes snapshot.take.</p>
       <ul id="cmd-list">${proposedHtml}</ul>
       <div class="admin-only">
-      <label for="cmd-reason">Razlog potvrde</label>
-      <input id="cmd-reason" maxlength="500" placeholder="npr. garden dry, run drip 10m" />
+      <label for="cmd-reason" data-i18n="hands_confirm_reason">Confirm reason</label>
+      <input id="cmd-reason" maxlength="500" placeholder="e.g. garden dry, run drip 10m" />
       <label><input id="cmd-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
       <div class="msg" id="cmd-msg"></div>
       </div>
     </section>
 
-    <footer>M9 Hands · local failsafe first · cloud predlaže, čovjek potvrđuje metal i vodu</footer>
+    <footer data-i18n="hands_footer">M9 Hands · local failsafe first · cloud proposes, human confirms metal and water</footer>
   </main>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
-
     function jsonHeaders() {
       return { "Content-Type": "application/json" };
     }
@@ -253,7 +249,7 @@ export async function renderHands(c: Context<AppEnv>) {
           body: "{}",
         });
         const body = await res.json().catch(() => ({}));
-        setMsg(msg, res.ok ? ("Pokrenuto: " + JSON.stringify(body.fired || [])) : (body.error || res.status), !res.ok);
+        setMsg(msg, res.ok ? t("hands_fired", { body: JSON.stringify(body.fired || []) }) : (body.error || res.status), !res.ok);
         if (res.ok) setTimeout(() => location.reload(), 600);
         return;
       }
@@ -265,7 +261,7 @@ export async function renderHands(c: Context<AppEnv>) {
           body: JSON.stringify({ enabled: false }),
         });
         const body = await res.json().catch(() => ({}));
-        setMsg(msg, res.ok ? "Isključeno." : (body.error || res.status), !res.ok);
+        setMsg(msg, res.ok ? t("hands_disabled") : (body.error || res.status), !res.ok);
         if (res.ok) location.reload();
         return;
       }
@@ -274,7 +270,7 @@ export async function renderHands(c: Context<AppEnv>) {
         const confirm = document.getElementById("enable-confirm").checked;
         const risk = btn.getAttribute("data-risk");
         if (risk !== "low" && (!confirm || reason.length < 3)) {
-          setMsg(msg, "Potrebno confirm: true + razlog (≥3).", true);
+          setMsg(msg, t("hands_need_confirm"), true);
           return;
         }
         const res = await fetch("/v1/automations/" + id + "/enable", {
@@ -284,7 +280,7 @@ export async function renderHands(c: Context<AppEnv>) {
           body: JSON.stringify({ enabled: true, confirm, reason: reason || undefined }),
         });
         const body = await res.json().catch(() => ({}));
-        setMsg(msg, res.ok ? "Uključeno." : (body.message || body.error || res.status), !res.ok);
+        setMsg(msg, res.ok ? t("hands_enabled") : (body.message || body.error || res.status), !res.ok);
         if (res.ok) location.reload();
       }
     });
@@ -303,7 +299,7 @@ export async function renderHands(c: Context<AppEnv>) {
         }),
       });
       const body = await res.json().catch(() => ({}));
-      setMsg(msg, res.ok ? ("Posao " + body.id + " · " + body.status) : (body.error || res.status), !res.ok);
+      setMsg(msg, res.ok ? t("hands_job_created", { id: body.id, status: body.status }) : (body.error || res.status), !res.ok);
       if (res.ok) setTimeout(() => location.reload(), 500);
     };
 
@@ -318,7 +314,7 @@ export async function renderHands(c: Context<AppEnv>) {
           "operator confirm job";
         if (!document.getElementById("enable-confirm").checked &&
             !document.getElementById("cmd-confirm").checked) {
-          setMsg(msg, "Označi confirm: true (gore ili dolje) + razlog.", true);
+          setMsg(msg, t("hands_need_confirm_check"), true);
           return;
         }
         const res = await fetch("/v1/jobs/" + id + "/confirm", {
@@ -328,7 +324,7 @@ export async function renderHands(c: Context<AppEnv>) {
           body: JSON.stringify({ confirm: true, reason }),
         });
         const body = await res.json().catch(() => ({}));
-        setMsg(msg, res.ok ? "Potvrđeno." : (body.message || body.error || res.status), !res.ok);
+        setMsg(msg, res.ok ? t("hands_confirmed") : (body.message || body.error || res.status), !res.ok);
         if (res.ok) location.reload();
         return;
       }
@@ -340,7 +336,7 @@ export async function renderHands(c: Context<AppEnv>) {
           body: JSON.stringify({ status: "cancelled" }),
         });
         const body = await res.json().catch(() => ({}));
-        setMsg(msg, res.ok ? "Otkazano." : (body.error || res.status), !res.ok);
+        setMsg(msg, res.ok ? t("hands_cancelled") : (body.error || res.status), !res.ok);
         if (res.ok) location.reload();
       }
     });
@@ -352,7 +348,7 @@ export async function renderHands(c: Context<AppEnv>) {
       const reason = document.getElementById("cmd-reason").value.trim();
       const confirm = document.getElementById("cmd-confirm").checked;
       if (!confirm || reason.length < 3) {
-        setMsg(msg, "Potrebno confirm: true + razlog.", true);
+        setMsg(msg, t("hands_need_confirm"), true);
         return;
       }
       const res = await fetch("/v1/commands/" + btn.getAttribute("data-id") + "/confirm", {
@@ -362,7 +358,7 @@ export async function renderHands(c: Context<AppEnv>) {
         body: JSON.stringify({ confirm: true, reason }),
       });
       const body = await res.json().catch(() => ({}));
-      setMsg(msg, res.ok ? "Naredba sent." : (body.message || body.error || res.status), !res.ok);
+      setMsg(msg, res.ok ? t("hands_cmd_sent") : (body.message || body.error || res.status), !res.ok);
       if (res.ok) location.reload();
     });
 

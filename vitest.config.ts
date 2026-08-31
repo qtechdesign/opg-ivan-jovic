@@ -5,6 +5,8 @@ export default defineWorkersConfig({
     poolOptions: {
       workers: {
         wrangler: { configPath: "./wrangler.jsonc" },
+        // Shared D1 seed in beforeAll; KV/R2 stacked isolation fights Miniflare.
+        isolatedStorage: false,
         miniflare: {
           bindings: {
             SERVICE_NAME: "polje",

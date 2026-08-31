@@ -1,3 +1,8 @@
+---
+title: HTTP API
+description: Polje HTTP API — public reads, operator writes, edge ingest, and MCP.
+---
+
 # Polje HTTP API
 
 Base: `https://opg-ivanjovic.hr` (also `www` and `*.workers.dev`).
@@ -9,9 +14,27 @@ Auth for **writes**: Cloudflare secrets. Browser: `/login` (email + password) �
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/login` | admin login HTML |
-| GET | `/v1/session` | `{ operator: true\|false }` |
-| POST | `/v1/session` | `{ email, password }` → Set-Cookie |
+| GET | `/v1/session` | `{ operator, farm, flags }` |
+| POST | `/v1/session` | `{ email, password }` → Set-Cookie. 429 `rate_limited` after 10 attempts / 15 min per IP. |
 | DELETE | `/v1/session` | clear cookie |
+
+## Flags (KV)
+
+Defaults are all **on**. Inbound mail is never gated (no `mail_inbound` flag — that bounced `farm@`). Session stays an HttpOnly cookie; KV is not a session store.
+
+| Flag | If off |
+|---|---|
+| `grok_chat` | `POST /v1/grok/chat` → 403 |
+| `grok_briefing` | cron + `POST /v1/grok/briefing` skip |
+| `mail_send` | `POST /v1/mail/send` → 403 |
+| `automations_tick` | DO alarm / ingest skip auto-fire; manual `/evaluate` still runs |
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/v1/flags?farm=` | no | `{ flags }` |
+| PATCH | `/v1/flags` | operator | `{ flags: { grok_chat?: bool, … }, confirm: true, reason }` + audit |
+
+`GET /v1/overview` and `GET /v1/session` also include `flags`.
 
 ## Public
 
@@ -25,13 +48,18 @@ Auth for **writes**: Cloudflare secrets. Browser: `/login` (email + password) �
 | GET | `/v1/media?farm=ivan-jovic` | growth media metadata |
 | GET | `/v1/media/:id` | image bytes from R2 via Worker |
 | GET | `/` | overview HTML |
+| GET | `/og.jpg` | Open Graph / WhatsApp JPEG (≤200 KB). Generate with operator `POST /v1/og/generate` or `npm run og:imagine`. |
+| GET | `/hero.jpg` | Overview still (generated xAI, else OG). `POST /v1/hero/generate` or `npm run hero:imagine`. |
 | GET | `/land` | land ledger HTML (M1) |
 | GET | `/eyes` | camera stills grid (M3) |
 | GET | `/water` | irrigation zones + run (M5) |
 | GET | `/klima` | climate + energy (M6) |
 | GET | `/hands` | automations + jobs (M9) |
 | GET | `/frost` | FPS frost console (M4) |
-| GET | `/mail` | farm mailbox HTML |
+| GET | `/plan` | build / procurement timeline HTML (time + EUR cents) |
+| GET | `/v1/plan?farm=` | `{ phases, totals }` — amounts are planning envelopes, not quotes |
+| GET | `/v1/trello?farm=` | public Trello lists for `ivan-jovic` (`https://trello.com/b/RCANtF3j/opg-ivan-jovic`). Read-only; no Trello API key. Writes stay on Trello. |
+| GET | `/mail` | farm mailbox HTML (**admin session** — redirects to `/login`) |
 | GET | `/ledger` | money ledger HTML (M7; amounts public, writes need admin) |
 | GET | `/v1/ledger` | list entries (`farm`, `from`, `to`, `kind`, `category`, `limit`) |
 | GET | `/v1/ledger/summary` | P&amp;L + monthly buckets |
@@ -176,15 +204,19 @@ Integer **cents EUR**; `kind` is the sign. Months are UTC (`substr(ts, 1, 7)`). 
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/v1/grok/chat` | operator | `{ farm_slug?, message }` → xAI `grok-4.6` with Polje tools. High-risk tools cannot be confirmed by Grok. |
+| POST | `/v1/grok/chat` | operator | `{ farm_slug?, message }` → xAI `grok-4.6` with Polje tools. High-risk tools cannot be confirmed by Grok. Flag `grok_chat`. 40 / 15 min per farm. |
 | GET | `/v1/grok/briefing/today?farm=` | no | Today's HR+EN briefing or `null` |
 | POST | `/v1/grok/briefing` | operator | `{ farm_slug?, force? }` regenerate today |
+| POST | `/v1/og/generate` | operator | `{ confirm: true, reason, farm_slug?, prompt? }` Grok Imagine → R2 `{slug}/og/share.jpg`. WhatsApp needs JPEG ≤200 KB (`npm run og:imagine` compresses). |
+| POST | `/v1/hero/generate` | operator | `{ confirm: true, reason, farm_slug?, prompt? }` Grok Imagine → R2 `{slug}/hero/still.jpg`. `npm run hero:imagine` also uploads. |
+| POST | `/v1/plan` | operator | `{ title, body?, starts_on?, ends_on?, amount_eur?, status?, sort?, confirm, reason }` audit `plan.create` |
+| PATCH | `/v1/plan/:id` | operator | same fields + `confirm` + `reason` — audit `plan.patch` |
 
 Worker secret `XAI_API_KEY` required for chat/briefing generation. Missing → 503 `xai_not_configured`.
 
 Cron (`*/5`) also gates a morning briefing at **06:00 Europe/Zagreb** (idempotent per `local_date`). Optional `OPERATOR_NOTIFY_EMAIL` sends via Email Service.
 
-Dashboard: Grok dock on `/` (Pregled).
+Dashboard: Grok dock on `/` (Overview).
 
 ## MCP (M8)
 

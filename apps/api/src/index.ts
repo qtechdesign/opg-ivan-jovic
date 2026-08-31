@@ -8,7 +8,11 @@ import { climateApi } from "./routes/climate";
 import { ledgerApi } from "./routes/ledger";
 import { automationsApi } from "./routes/automations";
 import { fpsApi } from "./routes/fps";
+import { ogApi } from "./routes/og";
+import { fontsApi } from "./routes/fonts";
+import { planApi } from "./routes/plan";
 import { renderHome, renderLand } from "./pages/land";
+import { renderPlan } from "./pages/plan";
 import { renderEyes } from "./pages/eyes";
 import { renderWater } from "./pages/water";
 import { renderHands } from "./pages/hands";
@@ -19,9 +23,10 @@ import { renderKlima } from "./pages/klima";
 import { renderLogin } from "./pages/login";
 import { settleEnergyDaily } from "./lib/energy";
 import { FarmRuntime, farmStub } from "./do/farm-runtime";
-import { defaultFarmSlug, getFarmBySlug } from "./lib/farm";
+import { defaultFarmSlug, getFarm } from "./lib/farm";
 import { ingestInboundEmail } from "./lib/mail";
 import { maybeRunMorningBriefing } from "./lib/briefing";
+import { writeMetric } from "./lib/kv";
 import {
   createPoljeMcpHandler,
   requireAgentToken,
@@ -39,6 +44,9 @@ app.route("/", climateApi);
 app.route("/", ledgerApi);
 app.route("/", automationsApi);
 app.route("/", fpsApi);
+app.route("/", ogApi);
+app.route("/", fontsApi);
+app.route("/", planApi);
 app.get("/", (c) => renderHome(c));
 app.get("/login", (c) => renderLogin(c));
 app.get("/eyes", (c) => renderEyes(c));
@@ -49,6 +57,7 @@ app.get("/hands", (c) => renderHands(c));
 app.get("/mail", (c) => renderMail(c));
 app.get("/ledger", (c) => renderLedger(c));
 app.get("/klima", (c) => renderKlima(c));
+app.get("/plan", (c) => renderPlan(c));
 
 async function handleQueue(
   batch: MessageBatch<IngestBatch>,
@@ -86,13 +95,21 @@ async function handleEmail(
   _ctx: ExecutionContext
 ): Promise<void> {
   const raw = await new Response(message.raw).arrayBuffer();
-  const result = await ingestInboundEmail(env, {
-    envelopeFrom: message.from,
-    envelopeTo: message.to,
-    raw,
-  });
-  if ("rejected" in result) {
-    message.setReject("Unknown mailbox");
+  try {
+    const result = await ingestInboundEmail(env, {
+      envelopeFrom: message.from,
+      envelopeTo: message.to,
+      raw,
+    });
+    if ("rejected" in result) {
+      // Routing already sent this address to us. Bounce was 555 Unknown mailbox.
+      console.error("mail ingest skipped", message.to, result.rejected);
+    } else {
+      writeMetric(env, "mail_in", defaultFarmSlug(env));
+    }
+  } catch (err) {
+    console.error("mail ingest error", message.to, err);
+    throw err;
   }
 }
 
@@ -102,7 +119,7 @@ async function handleScheduled(
   _ctx: ExecutionContext
 ): Promise<void> {
   const slug = defaultFarmSlug(env);
-  const farm = await getFarmBySlug(env.DB, slug);
+  const farm = await getFarm(env, slug);
   if (farm) {
     try {
       const n = await tickIrrigationSchedules(

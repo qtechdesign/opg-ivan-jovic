@@ -1,0 +1,15 @@
+---
+title: Safety
+description: Local failsafe, confirm for dangerous writes, audit, and what never belongs in public docs.
+---
+
+Polje treats the field edge as the muscle and the failsafe. The cloud is the brain and the ledger. If Starlink or Cloudflare dies, pumps and heaters must not run wild.
+
+1. **Local failsafe first** — actuators timeout on the edge; cloud is not the only safety layer.
+2. **High-risk tools** (irrigation, heat, pumps, frost valves, enable_automation) require `confirm: true` + a reason.
+3. **Without confirm** → proposal only. Grok chat cannot confirm high-risk actions.
+4. **Every write** creates an audit event (who / what / why / before / after).
+5. **Never** put camera RTSP URLs, tokens, bank data, or exact private GPS in prompts or public docs.
+6. **Rain lockout** applies to drip, never to frost spray zones.
+
+Agents use the same rules over [MCP](/mcp/). Operator writes go through the [HTTP API](/api/).

@@ -2,10 +2,10 @@
 
 export const OPERATOR_GATE_HTML = `<section class="panel no-print" id="op-gate">
       <div class="row">
-        <span class="dim" id="op-hint">Admin · naredbe</span>
+        <span class="dim" id="op-hint" data-i18n="op_hint">Admin · commands</span>
         <div class="actions" style="margin-top:0">
-          <a class="btn-ghost" id="op-login-link" href="/login">Prijava</a>
-          <button type="button" class="btn-ghost" id="op-logout" hidden>Odjavi se</button>
+          <a class="btn-ghost" id="op-login-link" href="/login" data-i18n="op_login">Sign in</a>
+          <button type="button" class="btn-ghost" id="op-logout" hidden data-i18n="op_logout">Sign out</button>
         </div>
       </div>
     </section>`;
@@ -25,7 +25,10 @@ export const OPERATOR_SESSION_JS = `
         document.body.classList.toggle("is-admin", on);
         if (loginLink) loginLink.hidden = on;
         if (logoutBtn) logoutBtn.hidden = !on;
-        if (hint) hint.textContent = on ? "Prijavljen · naredbe otvorene." : "Gledanje otvoreno · prijava samo za naredbe.";
+        if (hint) {
+          hint.removeAttribute("data-i18n");
+          hint.textContent = on ? t("op_on") : t("op_off");
+        }
         if (on && typeof window.poljeOnLogin === "function") window.poljeOnLogin();
         return on;
       } catch (e) {
@@ -40,4 +43,5 @@ export const OPERATOR_SESSION_JS = `
         location.reload();
       };
     }
+    document.addEventListener("polje:lang", () => { opRefreshGate(); });
 `.trim();

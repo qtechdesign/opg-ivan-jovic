@@ -8,7 +8,7 @@ Public bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md). Read it before editing.
 2. **Confirm dangerous writes** — irrigation, heat, pumps/heaters from agents need `confirm: true` + audit.
 3. **Every action is an event** — who / what / why / before / after.
 4. **EUR + HR context** — cents EUR, ISO-8601 UTC; no invented legal advice.
-5. **Public by default, secrets never** — tokens, camera URLs, bank data stay private.
+5. **Public by default, secrets never** — live cameras and cash-flow book are public; tokens, RTSP URLs, bank credentials stay private.
 6. **Starlink-aware** — buffer on edge; small JSON; snapshots before streams.
 7. **Local servers are first-class** — MQTT / LoRa / frost / schedules run on-farm.
 8. **Qtech FPS is a living fork** — lands in `forks/qtech` (M4); do not rewrite from scratch.
@@ -33,9 +33,11 @@ M0 skeleton → M1 land ledger → M2 edge + ingest → M3 cameras → M4 FPS Lo
 - Prefer small PRs / one module per change.
 - Always add an audit event when adding a new write path.
 - Prefer: *Follow OPG-IVAN-JOVIC.md. Implement only module Mx. Keep types in packages/schema.*
+- **Deploy with Wrangler CLI**, not GitHub Actions. After Worker changes: `npm run deploy`. Migrations: `npm run db:migrate:remote`. Never restore a GitHub deploy workflow.
 - Forks keep `farm_id` on every row. Do not commit this instance’s Wrangler D1/R2/domain ids as if they were yours. See [`docs/FORK.md`](docs/FORK.md).
 
 ## Public hostnames
 
 - `https://opg-ivanjovic.hr`
 - `https://www.opg-ivanjovic.hr`
+- `https://docs.opg-ivanjovic.hr`

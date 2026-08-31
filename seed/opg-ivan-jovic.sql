@@ -133,3 +133,108 @@ INSERT INTO automations (id, farm_id, name, enabled, risk, trigger_json, action_
     NULL,
     '2026-08-31T00:00:00Z'
   );
+
+INSERT INTO mailboxes (id, farm_id, address, display_name, kind, created_at)
+VALUES (
+  'c1000000-0000-4000-8000-000000000001',
+  'a1000000-0000-4000-8000-000000000001',
+  'farm@opg-ivanjovic.hr',
+  'OPG Ivan Jović',
+  'agent',
+  '2026-08-31T00:00:00Z'
+);
+
+DELETE FROM build_phases WHERE farm_id = 'a1000000-0000-4000-8000-000000000001';
+
+INSERT INTO build_phases (id, farm_id, title, body, starts_on, ends_on, amount_cents, currency, status, sort, created_at) VALUES
+  (
+    'e1000000-0000-4000-8000-000000000001',
+    'a1000000-0000-4000-8000-000000000001',
+    'Public farm OS (this site)',
+    'Polje on Cloudflare: DNS, GitHub, public bible. Envelope TBD — not a quote.',
+    '2026-08-01',
+    '2026-09-30',
+    0,
+    'EUR',
+    'active',
+    10,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000002',
+    'a1000000-0000-4000-8000-000000000001',
+    'Civil works',
+    'Yard, access, foundations. Same card as Trello Civil works. Envelope TBD — not a quote.',
+    '2026-08-01',
+    '2026-12-31',
+    0,
+    'EUR',
+    'active',
+    20,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000003',
+    'a1000000-0000-4000-8000-000000000001',
+    'Starlink uplink',
+    'Rural internet for the farm OS. Buffer on edge; snapshots before streams. Envelope TBD.',
+    '2026-09-01',
+    '2026-10-31',
+    0,
+    'EUR',
+    'planned',
+    30,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000004',
+    'a1000000-0000-4000-8000-000000000001',
+    'Utilities',
+    'Water, electricity, gas, sewer — as on the public Trello. Envelope TBD.',
+    '2026-09-01',
+    '2027-03-31',
+    0,
+    'EUR',
+    'planned',
+    40,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000005',
+    'a1000000-0000-4000-8000-000000000001',
+    'Cameras + NVR',
+    'Yard, garden, hay stills. Local NVR. Streams later. Envelope TBD.',
+    '2026-10-01',
+    '2026-12-31',
+    0,
+    'EUR',
+    'planned',
+    50,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000006',
+    'a1000000-0000-4000-8000-000000000001',
+    'Accumulation pond',
+    'Rain-fed pond for irrigation and frost water. Civil + liner. Envelope TBD.',
+    '2026-10-01',
+    '2027-04-30',
+    0,
+    'EUR',
+    'planned',
+    60,
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e1000000-0000-4000-8000-000000000007',
+    'a1000000-0000-4000-8000-000000000001',
+    'Drip + FPS frost',
+    'Garden drip and hay frost line. OTS valves now; FPS LoRa when cash allows. Envelope TBD.',
+    '2026-11-01',
+    '2027-04-30',
+    0,
+    'EUR',
+    'planned',
+    70,
+    '2026-08-31T00:00:00Z'
+  );

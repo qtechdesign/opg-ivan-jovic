@@ -1,19 +1,19 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
 const CAMERA_LABEL: Record<string, string> = {
-  "cam-yard": "Dvorište",
-  "cam-garden": "Vrt",
-  "cam-hay": "Sijeno",
+  "cam-yard": "cam_yard",
+  "cam-garden": "cam_garden",
+  "cam-hay": "cam_hay",
 };
 
 export async function renderEyes(c: Context<AppEnv>) {
@@ -21,24 +21,21 @@ export async function renderEyes(c: Context<AppEnv>) {
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm nije seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       503
     );
   }
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Oči · ${escapeHtml(farm.name)}</title>
-  <style>${CHASSIS_CSS}
-  main { max-width: 1100px; }
-  .eyes-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: `Eyes · ${farm.name}`,
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/eyes",
+    pipHtml: `<span class="pip ok">EYES</span>`,
+    extraHead: shareHead(c.req.url, `Eyes · ${farm.name}`, "Live stills from the farm — yard, garden, hay."),
+    extraCss: `
   .eye {
     border: 1px solid var(--hairline);
     border-radius: 4px;
@@ -80,32 +77,29 @@ export async function renderEyes(c: Context<AppEnv>) {
     color: var(--spectral-dim);
     white-space: nowrap;
   }
-  @media (max-width: 900px) {
-    .eyes-grid { grid-template-columns: 1fr; }
-  }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip ok">OČI</span>
-  </header>
-  <main>
-    <h1>Oči</h1>
-    <p class="sub">Pogled s ruba farme — dvorište, vrt, sijeno. Još nema kamera na stupu; ovo su mjesta koja čekaju.</p>
+`,
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+  })}
+  <main class="wide">
+    <h1 data-i18n="eyes_title">Eyes</h1>
+    <p class="sub" data-i18n="eyes_sub">Live view from the farm — yard, garden, hay. Cameras on this page when the edge has them.</p>
     <div class="eyes-grid" id="grid"></div>
-    <footer>Kuća iz 1923. · slike, ne stream</footer>
+    <footer data-i18n="eyes_footer">House from 1923 · live stills</footer>
   </main>
+  </div>
+  ${bootScripts()}
   <script>
-    ${FARM_SLUG_JS}
     const LABELS = ${JSON.stringify(CAMERA_LABEL)};
     const grid = document.getElementById("grid");
-    function label(id, fallback) { return LABELS[id] || fallback || id; }
+    function label(id, fallback) {
+      const key = LABELS[id];
+      return key ? t(key) : (fallback || id);
+    }
     function whenText(iso) {
       if (!iso) return "";
       try {
-        return new Date(iso).toLocaleString("hr-HR", {
+        return new Date(iso).toLocaleString(loc(), {
           day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
         });
       } catch (e) { return ""; }
@@ -113,13 +107,13 @@ export async function renderEyes(c: Context<AppEnv>) {
     async function load() {
       const res = await fetch("/v1/cameras?farm=" + encodeURIComponent(FARM));
       if (!res.ok) {
-        grid.innerHTML = '<p class="dim">Trenutačno nema pogleda.</p>';
+        grid.innerHTML = '<p class="dim">' + t("eyes_no_view") + "</p>";
         return;
       }
       const data = await res.json();
       const cams = data.cameras || [];
       if (!cams.length) {
-        grid.innerHTML = '<p class="dim">Još nema kamera.</p>';
+        grid.innerHTML = '<p class="dim">' + t("eyes_none") + "</p>";
         return;
       }
       grid.innerHTML = cams.map((cam) => {
@@ -127,8 +121,8 @@ export async function renderEyes(c: Context<AppEnv>) {
         const bust = has ? ("?t=" + encodeURIComponent(cam.snapshot.captured_at)) : "";
         const img = has
           ? '<img src="/v1/cameras/' + cam.id + '/latest' + bust + '" alt="' + label(cam.id, cam.name) + '" />'
-          : '<div class="empty">Još nema slike</div>';
-        const when = has ? whenText(cam.snapshot.captured_at) : "čeka kameru";
+          : '<div class="empty">' + t("eyes_no_image") + "</div>";
+        const when = has ? whenText(cam.snapshot.captured_at) : t("eyes_waiting");
         return (
           '<article class="eye">' +
             '<div class="eye-frame">' + img + '</div>' +
@@ -141,6 +135,7 @@ export async function renderEyes(c: Context<AppEnv>) {
       }).join("");
     }
     load();
+    document.addEventListener("polje:lang", () => { load(); });
   </script>
 </body>
 </html>`);

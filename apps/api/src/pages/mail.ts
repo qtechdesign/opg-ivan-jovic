@@ -1,39 +1,41 @@
 import type { Context } from "hono";
 import {
-  CHASSIS_CSS,
+  bootScripts,
   escapeHtml,
-  farmBrand,
-  FARM_SLUG_JS,
-  siteNav,
+  pageOpen,
+  shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
+import { requireOperatorHtml } from "../lib/auth";
 import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { AGENT_MAILBOX_ADDRESS } from "@polje/schema";
+import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
 export async function renderMail(c: Context<AppEnv>) {
+  const denied = await requireOperatorHtml(c);
+  if (denied) return denied;
+
   const { farm, defaultSlug } = await farmFromRequest(c);
 
   if (!farm) {
     return c.html(
-      `<!DOCTYPE html><html lang="hr"><body><p>Farm nije seeded.</p></body></html>`,
+      `<!DOCTYPE html><html lang="en"><body><p>Farm not seeded.</p></body></html>`,
       503
     );
   }
 
-  return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>POLJE · Pošta</title>
-  <style>${CHASSIS_CSS}
-  main { max-width: 960px; }
-  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  .metric { border: 1px solid var(--hairline); border-radius: 4px; padding: 16px; background: color-mix(in oklab, var(--void-soft) 82%, transparent); }
-  .metric .n { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 28px; line-height: 1; }
-  .metric .l { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); margin-top: 8px; }
+  const wxSkin = weatherNow(farm.timezone, null);
+  return c.html(`${pageOpen({
+    title: "POLJE · Mail",
+    farmName: farm.name,
+    farmSlug: farm.slug,
+    defaultSlug,
+    currentPath: "/mail",
+    pipHtml: `<span class="pip ok">MAIL</span>`,
+    extraHead: shareHead(c.req.url, "POLJE · Mail", "Farm mailbox. Send is admin only."),
+    extraCss: `
   .chart { width: 100%; height: 140px; display: block; }
   .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--spectral-dim); }
   .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 6px; }
@@ -51,18 +53,14 @@ export async function renderMail(c: Context<AppEnv>) {
     margin: 0;
   }
   .locked { color: var(--spectral-dim); }
-  @media (max-width: 720px) { .metrics { grid-template-columns: 1fr 1fr; } }
-  </style>
-</head>
-<body>
-  <header>
-    ${farmBrand(farm.name, farm.slug, defaultSlug)}
-    ${siteNav(farm.slug, defaultSlug)}
-    <span class="pip ok">POŠTA</span>
-  </header>
+`,
+    solar: wxSkin.solar,
+    wx: wxSkin.wx,
+    bodyClass: "is-admin",
+  })}
   <main>
-    <h1>Pošta</h1>
-    <p class="sub">Pošta farme · ${escapeHtml(AGENT_MAILBOX_ADDRESS)}</p>
+    <h1 data-i18n="mail_title">Mail</h1>
+    <p class="sub"><span data-i18n="mail_title">Mail</span> · ${escapeHtml(AGENT_MAILBOX_ADDRESS)}</p>
 
     ${OPERATOR_GATE_HTML}
 
@@ -74,7 +72,7 @@ export async function renderMail(c: Context<AppEnv>) {
     </div>
 
     <section class="panel">
-      <h2>14 dana · promet</h2>
+      <h2 data-i18n="mail_traffic">14 days · traffic</h2>
       <svg class="chart" id="chart" viewBox="0 0 640 140" role="img" aria-label="Mail volume"></svg>
       <div class="legend">
         <span><span class="swatch" style="background:var(--leaf)"></span>Inbound</span>
@@ -83,20 +81,20 @@ export async function renderMail(c: Context<AppEnv>) {
     </section>
 
     <section class="panel">
-      <h2>Poruke</h2>
-      <ul class="msg-list" id="list"><li class="dim">Učitavanje…</li></ul>
+      <h2 data-i18n="mail_messages">Messages</h2>
+      <ul class="msg-list" id="list"><li class="dim" data-i18n="loading">Loading…</li></ul>
     </section>
 
     <section class="panel" id="detail-panel" hidden>
-      <h2>Poruka</h2>
+      <h2 data-i18n="mail_message">Message</h2>
       <p class="meta" id="detail-meta"></p>
       <pre class="body-pre" id="detail-body"></pre>
       <ul id="detail-att"></ul>
     </section>
 
     <section class="panel admin-only">
-      <h2>Pošalji (confirm)</h2>
-      <p class="dim">From uvijek ${escapeHtml(AGENT_MAILBOX_ADDRESS)}. Treba confirm + razlog — agent kasnije koristi isti path.</p>
+      <h2 data-i18n="mail_send">Send (confirm)</h2>
+      <p class="dim">From is always ${escapeHtml(AGENT_MAILBOX_ADDRESS)}. Needs confirm + reason — agents use the same path later.</p>
       <form id="form-send">
         <label for="send-to">To</label>
         <input id="send-to" type="email" required maxlength="320" placeholder="partner@example.com" />
@@ -104,20 +102,19 @@ export async function renderMail(c: Context<AppEnv>) {
         <input id="send-subject" required maxlength="200" />
         <label for="send-text">Text</label>
         <textarea id="send-text" required maxlength="100000"></textarea>
-        <label for="send-reason">Razlog (audit)</label>
+        <label for="send-reason" data-i18n="mail_reason">Reason (audit)</label>
         <input id="send-reason" required minlength="3" maxlength="500" placeholder="e.g. quote reply to contractor" />
         <label><input id="send-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
-        <div class="actions"><button class="btn-ghost" type="submit">Pošalji</button></div>
+        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="mail_send_btn">Send</button></div>
         <div class="msg" id="send-msg"></div>
       </form>
     </section>
 
     <footer>Ledger only · Grok auto-reply is later (M8) · Cloudflare Email Service</footer>
   </main>
+  </div>
+  ${bootScripts(OPERATOR_SESSION_JS)}
   <script>
-    ${FARM_SLUG_JS}
-    ${OPERATOR_SESSION_JS}
-
     function setMsg(el, text, err) {
       el.textContent = text || "";
       el.className = "msg" + (err ? " err" : "");
@@ -154,6 +151,10 @@ export async function renderMail(c: Context<AppEnv>) {
           fetch("/v1/mail/summary?farm=" + encodeURIComponent(FARM), { credentials: "include" }),
           fetch("/v1/mail?farm=" + encodeURIComponent(FARM), { credentials: "include" })
         ]);
+        if (sumRes.status === 401 || listRes.status === 401) {
+          location.href = "/login?next=" + encodeURIComponent(location.pathname + location.search);
+          return;
+        }
         if (!sumRes.ok) throw new Error("summary " + sumRes.status);
         const sum = await sumRes.json();
         document.getElementById("n-in").textContent = sum.totals.inbound;
@@ -165,7 +166,7 @@ export async function renderMail(c: Context<AppEnv>) {
         const data = await listRes.json();
         const msgs = data.messages || [];
         if (msgs.length === 0) {
-          list.innerHTML = '<li class="dim">Prazno. Pošta na farm@ čeka prvu poruku.</li>';
+          list.innerHTML = '<li class="dim">' + t("mail_empty") + "</li>";
           return;
         }
         list.innerHTML = msgs.map((m) => {
@@ -192,7 +193,7 @@ export async function renderMail(c: Context<AppEnv>) {
       const body = document.getElementById("detail-body");
       const att = document.getElementById("detail-att");
       panel.hidden = false;
-      meta.textContent = "Učitavam…";
+      meta.textContent = t("loading");
       body.textContent = "";
       att.innerHTML = "";
       try {
@@ -200,7 +201,7 @@ export async function renderMail(c: Context<AppEnv>) {
         const m = await res.json();
         if (!res.ok) throw new Error(m.error || res.statusText);
         meta.textContent = (m.direction || "").toUpperCase() + " · " + m.from_addr + " → " + m.to_addr + " · " + (m.status || "");
-        body.textContent = m.text_body || "(nema teksta)";
+        body.textContent = m.text_body || t("mail_no_text");
         const files = m.attachments || [];
         att.innerHTML = files.map((a) =>
           '<li><button type="button" class="btn-ghost att-dl admin-only" data-url="' + a.url + '" data-name="' + escapeHtml(a.filename) + '">' + escapeHtml(a.filename) + "</button></li>"
@@ -228,7 +229,7 @@ export async function renderMail(c: Context<AppEnv>) {
       e.preventDefault();
       const msg = document.getElementById("send-msg");
       if (!document.getElementById("send-confirm").checked) {
-        return setMsg(msg, "Potrebno confirm: true", true);
+        return setMsg(msg, t("mail_need_confirm"), true);
       }
       const body = {
         farm_slug: FARM,
@@ -249,7 +250,7 @@ export async function renderMail(c: Context<AppEnv>) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || res.statusText);
-        setMsg(msg, "Poslano · " + data.status + " · " + data.id);
+        setMsg(msg, t("mail_sent", { status: data.status, id: data.id }));
         document.getElementById("send-text").value = "";
         document.getElementById("send-confirm").checked = false;
         loadAll();
@@ -268,6 +269,7 @@ export async function renderMail(c: Context<AppEnv>) {
 
     opRefreshGate();
     loadAll();
+    document.addEventListener("polje:lang", () => { loadAll(); });
   </script>
 </body>
 </html>`);

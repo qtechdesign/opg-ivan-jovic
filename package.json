@@ -17,7 +17,12 @@
     "db:migrate:local": "wrangler d1 migrations apply polje --local",
     "db:migrate:remote": "wrangler d1 migrations apply polje --remote",
     "seed:local": "node scripts/seed.mjs",
-    "seed:remote": "node scripts/seed.mjs --remote"
+    "seed:remote": "node scripts/seed.mjs --remote",
+    "docs:dev": "npm run dev -w polje-docs",
+    "docs:build": "npm run build -w polje-docs",
+    "docs:deploy": "npm run deploy -w polje-docs",
+    "og:imagine": "node scripts/og-imagine.mjs",
+    "hero:imagine": "node scripts/hero-imagine.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",

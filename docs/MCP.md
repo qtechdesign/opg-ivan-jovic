@@ -1,3 +1,8 @@
+---
+title: MCP
+description: Streamable HTTP MCP for Cursor, Grok, and other agents.
+---
+
 # Polje MCP
 
 Streamable HTTP MCP for Cursor, Grok, and other agents. Same tools as the HTTP API / Grok chat loop.
@@ -8,6 +13,8 @@ Streamable HTTP MCP for Cursor, Grok, and other agents. Same tools as the HTTP A
 |---|---|
 | Local | `http://127.0.0.1:8787/mcp` |
 | Production | `https://opg-ivanjovic.hr/mcp` |
+
+Public docs: [docs.opg-ivanjovic.hr/mcp](https://docs.opg-ivanjovic.hr/mcp).
 
 Auth: `Authorization: Bearer <AGENT_TOKEN>` on every request. Unauthenticated → 401.
 

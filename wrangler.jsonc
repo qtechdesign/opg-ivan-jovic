@@ -1,8 +1,9 @@
 /**
- * Polje Worker — M0–M10 + mail + ledger + FPS
+ * Polje Worker — M0–M10 + mail + ledger + FPS + KV
  *
  * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
  * Cron: every 5 min (irrigation schedules + yesterday solar settle + 06:00 Zagreb briefing gate)
+ * KV: flags, farm-row cache, rate limits (session stays HttpOnly cookie)
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -10,6 +11,10 @@
   "main": "apps/api/src/index.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    { "type": "Data", "globs": ["**/*.woff2"], "fallthrough": true },
+    { "type": "Data", "globs": ["**/*.png"], "fallthrough": true }
+  ],
   "workers_dev": true,
   "observability": {
     "enabled": true
@@ -22,6 +27,19 @@
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "603d5e24f1b6480793ec0c53886a4a30",
+      "preview_id": "027aca6a1fff43d29e0bb18a9550dfc7"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "METRICS",
+      "dataset": "polje"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

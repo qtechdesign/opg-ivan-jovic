@@ -8,6 +8,8 @@ import {
   settleEnergyDaily,
   startOfLocalDayUtc,
 } from "../src/lib/energy";
+import { canonicalAddress } from "../src/lib/mail";
+import { parseTrelloBoard } from "../src/lib/trello";
 
 const OPERATOR = "test-operator-token";
 const INGEST = "test-ingest-token";
@@ -255,6 +257,19 @@ const MIGRATION = [
   settled_at TEXT NOT NULL,
   PRIMARY KEY (farm_id, local_date, device_id)
 )`,
+  `CREATE TABLE build_phases (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT,
+  starts_on TEXT,
+  ends_on TEXT,
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'EUR',
+  status TEXT NOT NULL DEFAULT 'planned',
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+)`,
 ];
 
 async function migrateAndSeed() {
@@ -276,6 +291,15 @@ async function migrateAndSeed() {
      VALUES (?, 'ivan-jovic', 'OPG Ivan Jović', 'HR', 'Europe/Zagreb', NULL, NULL, NULL, '2026-08-31T00:00:00Z')`
   )
     .bind("a1000000-0000-4000-8000-000000000001")
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO build_phases (id, farm_id, title, body, starts_on, ends_on, amount_cents, currency, status, sort, created_at)
+     VALUES (?, ?, 'Civil works', 'Envelope TBD — not a quote.', '2026-08-01', '2026-12-31', 0, 'EUR', 'active', 20, '2026-08-31T00:00:00Z')`
+  )
+    .bind(
+      "e1000000-0000-4000-8000-000000000002",
+      "a1000000-0000-4000-8000-000000000001"
+    )
     .run();
   await env.DB.prepare(
     `INSERT INTO plots (id, farm_id, name, hectares, use_type, notes) VALUES
@@ -496,25 +520,160 @@ describe("polje M1", () => {
     const res = await app.request("/land", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Zemlja");
-    expect(html).toContain("Pregled");
-    expect(html).toContain("Knjiga");
+    expect(html).toContain("Land");
+    expect(html).toContain("Overview");
+    expect(html).toContain("Ledger");
+    expect(html).toContain("lang-toggle");
+    expect(html).toContain("https://docs.opg-ivanjovic.hr");
+    expect(html).toContain("Docs");
+    expect(html).toContain("nav-rail");
+    expect(html).toContain('aria-current="page"');
+  });
+
+  it("GET / includes Open Graph tags", async () => {
+    const res = await app.request("/", {}, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('property="og:image"');
+    expect(html).toContain("/og.jpg");
+    expect(html).toContain('name="twitter:card" content="summary"');
+    expect(html.indexOf('property="og:image"')).toBeLessThan(html.indexOf("<style>"));
+    expect(html).toContain('rel="icon" href="/favicon.svg"');
+    expect(html).toContain("brand-mark");
+  });
+
+  it("GET /favicon.svg is the field mark", async () => {
+    const res = await app.request("/favicon.svg", {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/svg+xml");
+    const svg = await res.text();
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("viewBox=\"0 0 32 32\"");
+  });
+
+  it("GET /apple-touch-icon.png is a PNG", async () => {
+    const res = await app.request("/apple-touch-icon.png", {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/png");
+    const buf = await res.arrayBuffer();
+    expect(buf.byteLength).toBeGreaterThan(100);
+    const bytes = new Uint8Array(buf);
+    expect(bytes[0]).toBe(0x89);
+    expect(bytes[1]).toBe(0x50);
+  });
+
+  it("GET /og.jpg without object → 404", async () => {
+    const res = await app.request("/og.jpg", {}, env);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /hero.jpg without object → 404", async () => {
+    const res = await app.request("/hero.jpg", {}, env);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET / is a public pilot overview", async () => {
+    const res = await app.request("/", {}, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("home_pitch");
+    expect(html).toContain("home_why");
+    expect(html).toContain("nav_plan");
+    expect(html).toContain("Civil works");
+    expect(html).toContain("https://trello.com/b/RCANtF3j/opg-ivan-jovic");
+    expect(html).toContain('href="/plan"');
+  });
+
+  it("GET /plan is public HTML", async () => {
+    const res = await app.request("/plan", {}, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("plan_howto");
+    expect(html).toContain("Civil works");
+    expect(html).toContain("trello-live");
+  });
+
+  it("GET /v1/plan lists phases", async () => {
+    const res = await app.request("/v1/plan?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      phases: Array<{ title: string; amount_cents: number }>;
+    };
+    expect(body.phases.some((p) => p.title === "Civil works")).toBe(true);
+    expect(body.phases[0]?.amount_cents).toBe(0);
+  });
+
+  it("GET /v1/trello returns board shape", async () => {
+    const res = await app.request("/v1/trello?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { slug: string; board: unknown };
+    expect(body.slug).toBe("ivan-jovic");
+    expect(body).toHaveProperty("board");
+  });
+
+  it("POST /v1/plan without confirm → proposal", async () => {
+    const res = await app.request(
+      "/v1/plan",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          title: "Starlink",
+          reason: "test phase",
+          confirm: false,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { proposal: boolean };
+    expect(body.proposal).toBe(true);
+  });
+
+  it("POST /v1/hero/generate without confirm → proposal", async () => {
+    const res = await app.request(
+      "/v1/hero/generate",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({ reason: "overview still", confirm: false }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { proposal: boolean };
+    expect(body.proposal).toBe(true);
+  });
+
+  it("POST /v1/og/generate without token → 401", async () => {
+    const res = await app.request(
+      "/v1/og/generate",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true, reason: "test" }),
+      },
+      env
+    );
+    expect(res.status).toBe(401);
   });
 
   it("GET farm pages without session are public HTML", async () => {
     const pages: Array<[string, string]> = [
-      ["/water", "Voda"],
-      ["/klima", "Klima"],
-      ["/hands", "Ruke"],
-      ["/mail", "Pošta"],
-      ["/frost", "Mraz"],
+      ["/water", "Water"],
+      ["/klima", "Climate"],
+      ["/hands", "Hands"],
+      ["/frost", "Frost"],
+      ["/plan", "Plan"],
     ];
     for (const [path, heading] of pages) {
       const res = await app.request(path, {}, env);
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain(heading);
-      expect(html).toContain("<nav>");
+      expect(html).toContain("<nav");
+      expect(html).toContain("nav-rail");
+      expect(html).toContain("viewport-fit=cover");
     }
   });
 
@@ -522,9 +681,33 @@ describe("polje M1", () => {
     const res = await app.request("/login", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Prijava");
+    expect(html).toContain("Sign in");
     expect(html).toContain("Email");
-    expect(html).toContain("Lozinka");
+    expect(html).toContain("Password");
+    expect(html).toContain("nav-rail");
+  });
+
+  it("GET /v1/weather/now returns solar and wx", async () => {
+    const res = await app.request("/v1/weather/now?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      solar: string;
+      wx: string;
+      temp_c: number | null;
+    };
+    expect(["dawn", "day", "dusk", "night"]).toContain(body.solar);
+    expect(["clear", "cloud", "rain", "snow", "frost", "fog"]).toContain(
+      body.wx
+    );
+    expect(body).toHaveProperty("temp_c");
+  });
+
+  it("GET /fonts/D-DIN.woff2 serves the chassis typeface", async () => {
+    const res = await app.request("/fonts/D-DIN.woff2", {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("font/woff2");
+    const buf = await res.arrayBuffer();
+    expect(buf.byteLength).toBeGreaterThan(1000);
   });
 
   it("POST /v1/session sets cookie that authorizes writes", async () => {
@@ -573,6 +756,32 @@ describe("polje M1", () => {
       env
     );
     expect(plot.status).toBe(201);
+  });
+
+  it("GET /mail without session → login; cookie opens mailbox", async () => {
+    const anon = await app.request("/mail", {}, env);
+    expect(anon.status).toBe(302);
+    expect(anon.headers.get("Location") || "").toContain("/login?next=");
+
+    const login = await app.request(
+      "/v1/session",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "info@qtech.hr",
+          password: "test-operator-password",
+        }),
+      },
+      env
+    );
+    const cookie = (login.headers.get("Set-Cookie") || "").split(";")[0];
+    const page = await app.request("/mail", { headers: { Cookie: cookie } }, env);
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain("Mail");
+    expect(html).toContain("farm@opg-ivanjovic.hr");
+    expect(html).not.toContain("Operator token");
   });
 
   it("POST /v1/ingest without token → 401", async () => {
@@ -738,8 +947,8 @@ describe("polje M3 cameras", () => {
     const res = await app.request("/eyes", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Oči");
-    expect(html).toContain("Knjiga");
+    expect(html).toContain("Eyes");
+    expect(html).toContain("Ledger");
   });
 });
 
@@ -959,8 +1168,8 @@ describe("polje M7 money ledger", () => {
     const res = await app.request("/ledger", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Knjiga");
-    expect(html).toContain("Pregled");
+    expect(html).toContain("Ledger");
+    expect(html).toContain("Overview");
   });
 });
 
@@ -1304,6 +1513,9 @@ describe("polje M8 MCP + Grok", () => {
   });
 
   it("POST /v1/grok/chat without XAI → 503", async () => {
+    if (env.XAI_API_KEY) {
+      return;
+    }
     const res = await app.request(
       "/v1/grok/chat",
       {
@@ -1323,7 +1535,9 @@ describe("polje M8 MCP + Grok", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("grok-dock");
-    expect(html).toContain("Pitaj farmu");
+    expect(html).toContain("Ask the farm");
+    expect(html).toContain("class=\"hero\"");
+    expect(html).toContain("nav-toggle");
   });
 });
 
@@ -1669,8 +1883,8 @@ describe("polje M9 automations", () => {
     const res = await app.request("/hands", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Ruke");
-    expect(html).toContain("Automatizacije");
+    expect(html).toContain("Hands");
+    expect(html).toContain("Automations");
     expect(html).toContain("data-farm=");
     expect(html).toContain("const FARM");
   });
@@ -1823,7 +2037,7 @@ describe("polje M5 irrigation", () => {
     const res = await app.request("/water", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Voda");
+    expect(html).toContain("Water");
     expect(html).toContain("confirm");
   });
 
@@ -2160,9 +2374,9 @@ describe("polje M4 FPS frost", () => {
     const res = await app.request("/frost", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Mraz");
+    expect(html).toContain("Frost");
     expect(html).toContain("ARM");
-    expect(html).toContain("Zadnji događaji");
+    expect(html).toContain("Recent events");
   });
 
   it("POST /v1/frost/events ingest writes frost_events ledger", async () => {
@@ -2543,5 +2757,164 @@ describe("polje M10 fork kit", () => {
     const ivanHtml = await ivan.text();
     expect(ivanHtml).toContain("OPG Ivan Jović");
     expect(ivanHtml).toContain("House yard");
+  });
+
+  it("GET /v1/flags defaults on; PATCH requires confirm and gates Grok", async () => {
+    const listed = await app.request("/v1/flags?farm=ivan-jovic", {}, env);
+    expect(listed.status).toBe(200);
+    const listedBody = (await listed.json()) as {
+      flags: { grok_chat: boolean; mail_send: boolean };
+    };
+    expect(listedBody.flags.grok_chat).toBe(true);
+    expect(listedBody.flags.mail_send).toBe(true);
+
+    const unauth = await app.request(
+      "/v1/flags",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flags: { grok_chat: false },
+          confirm: true,
+          reason: "test disable grok",
+        }),
+      },
+      env
+    );
+    expect(unauth.status).toBe(401);
+
+    const noConfirm = await app.request(
+      "/v1/flags",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({
+          flags: { grok_chat: false },
+          reason: "missing confirm",
+        }),
+      },
+      env
+    );
+    expect(noConfirm.status).toBe(400);
+
+    const patched = await app.request(
+      "/v1/flags",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({
+          flags: { grok_chat: false },
+          confirm: true,
+          reason: "test disable grok",
+        }),
+      },
+      env
+    );
+    expect(patched.status).toBe(200);
+    const patchedBody = (await patched.json()) as {
+      flags: { grok_chat: boolean };
+    };
+    expect(patchedBody.flags.grok_chat).toBe(false);
+
+    const session = await app.request("/v1/session", {}, env);
+    expect(session.status).toBe(200);
+    const sessionBody = (await session.json()) as {
+      flags: { grok_chat: boolean };
+    };
+    expect(sessionBody.flags.grok_chat).toBe(false);
+
+    const grok = await app.request(
+      "/v1/grok/chat",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({ message: "Kako je tlo?" }),
+      },
+      env
+    );
+    expect(grok.status).toBe(403);
+    const grokBody = (await grok.json()) as { error: string; flag: string };
+    expect(grokBody.error).toBe("flag_disabled");
+    expect(grokBody.flag).toBe("grok_chat");
+
+    const restored = await app.request(
+      "/v1/flags",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({
+          flags: { grok_chat: true },
+          confirm: true,
+          reason: "restore grok after test",
+        }),
+      },
+      env
+    );
+    expect(restored.status).toBe(200);
+  });
+
+  it("POST /v1/session rate-limits brute force per IP", async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      "cf-connecting-ip": "203.0.113.88",
+    };
+    const body = JSON.stringify({
+      email: "info@qtech.hr",
+      password: "wrong-password",
+    });
+    let last = 401;
+    for (let i = 0; i < 11; i++) {
+      const res = await app.request(
+        "/v1/session",
+        { method: "POST", headers, body },
+        env
+      );
+      last = res.status;
+    }
+    expect(last).toBe(429);
+  });
+});
+
+describe("canonicalAddress", () => {
+  it("parses a public Trello board JSON into lists", () => {
+    const view = parseTrelloBoard(
+      {
+        id: "RCANtF3j",
+        name: "OPG Ivan Jovic",
+        shortUrl: "https://trello.com/b/RCANtF3j/opg-ivan-jovic",
+        lists: [
+          { id: "l1", name: "In progress", pos: 1, closed: false },
+          { id: "l2", name: "Closed", pos: 2, closed: true },
+        ],
+        cards: [
+          {
+            id: "c1",
+            name: "Civil works",
+            idList: "l1",
+            url: "https://trello.com/c/c1",
+            pos: 1,
+          },
+          { id: "c2", name: "Hidden", idList: "l2", pos: 1, closed: true },
+        ],
+      },
+      "RCANtF3j"
+    );
+    expect(view.lists).toHaveLength(1);
+    expect(view.lists[0]?.cards[0]?.name).toBe("Civil works");
+  });
+
+  it("normalizes envelope and header forms to farm@", () => {
+    expect(canonicalAddress("farm@opg-ivanjovic.hr")).toBe(
+      "farm@opg-ivanjovic.hr"
+    );
+    expect(canonicalAddress("<farm@opg-ivanjovic.hr>")).toBe(
+      "farm@opg-ivanjovic.hr"
+    );
+    expect(canonicalAddress("Farm <farm@opg-ivanjovic.hr>")).toBe(
+      "farm@opg-ivanjovic.hr"
+    );
+    expect(canonicalAddress("farm+invoice@opg-ivanjovic.hr")).toBe(
+      "farm@opg-ivanjovic.hr"
+    );
   });
 });
