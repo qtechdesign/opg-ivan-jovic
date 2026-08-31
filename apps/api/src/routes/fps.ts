@@ -471,7 +471,7 @@ fpsApi.post("/v1/frost/events", async (c) => {
         farm.id
       )
       .run();
-    if (!upd.meta?.changes) {
+    if (!(upd.meta?.changes ?? 0)) {
       await c.env.DB.prepare(
         `INSERT INTO frost_events (id, farm_id, started_at, ended_at, min_temp_c, mode, water_m3, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`

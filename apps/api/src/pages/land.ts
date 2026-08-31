@@ -275,6 +275,7 @@ export async function renderHome(c: Context<AppEnv>) {
       const out = document.getElementById("grok-out");
       const brief = document.getElementById("grok-brief");
       const send = document.getElementById("grok-send");
+      if (!inp || !send || !out || !brief) return;
 
       fetch("/v1/grok/briefing/today?farm=" + encodeURIComponent(FARM))
         .then((r) => r.json())

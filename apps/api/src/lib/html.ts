@@ -189,6 +189,7 @@ textarea { min-height: 80px; resize: vertical; }
   display: inline-block;
 }
 .btn-ghost:hover { border-color: var(--spectral); }
+[hidden] { display: none !important; }
 .btn-alarm {
   appearance: none;
   background: var(--alarm);
