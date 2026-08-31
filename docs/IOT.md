@@ -59,6 +59,6 @@ Cloud automations (M9) do **not** invent a new MQTT schema. They enqueue `comman
 
 OTS: `soil-n-1`, `temp-yard-1`, `edge-1`  
 Irrigation: `valve-garden-drip`, `valve-hay-frost`  
-FPS: `fps-sn-1`, `fps-valve-1`, `fps-gw-1` (when M4 seeded)  
+FPS: `fps-sn-1`, `fps-valve-1`, `fps-gw-1`  
 Cameras: `cam-yard`, `cam-garden`, `cam-hay`  
 Climate + energy: `temp-house-1`, `heater-house-1`, `inv-1`, `ups-1`

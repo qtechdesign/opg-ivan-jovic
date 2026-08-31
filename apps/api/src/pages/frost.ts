@@ -108,6 +108,10 @@ export async function renderFrost(c: Context<AppEnv>) {
       <h2>Čvorovi</h2>
       <ul id="nodes"><li class="dim">Učitavanje…</li></ul>
     </section>
+    <section class="panel">
+      <h2>Zadnji događaji</h2>
+      <ul id="events"><li class="dim">Nema spray događaja.</li></ul>
+    </section>
     ${OPERATOR_GATE_HTML}
     <footer>Lokalni failsafe. Cloud nije jedini sloj sigurnosti.</footer>
   </main>
@@ -126,6 +130,7 @@ export async function renderFrost(c: Context<AppEnv>) {
     const elMsg = document.getElementById("msg");
     const elValveMsg = document.getElementById("valve-msg");
     const elNodes = document.getElementById("nodes");
+    const elEvents = document.getElementById("events");
 
     function setMsg(el, text, err) {
       el.textContent = text || "";
@@ -151,6 +156,17 @@ export async function renderFrost(c: Context<AppEnv>) {
         if (data.program) {
           if (data.program.temp_threshold_c != null) document.getElementById("thr").value = data.program.temp_threshold_c;
           if (data.program.max_spray_sec != null) document.getElementById("maxsec").value = data.program.max_spray_sec;
+        }
+        const ev = data.recent_events || [];
+        if (!ev.length) {
+          elEvents.innerHTML = '<li class="dim">Nema spray događaja.</li>';
+        } else {
+          elEvents.innerHTML = ev.map((e) => {
+            const start = (e.started_at || "").replace("T", " ").slice(0, 16);
+            const end = e.ended_at ? " → " + String(e.ended_at).slice(11, 16) : " (aktivno)";
+            const t = e.min_temp_c != null ? Number(e.min_temp_c).toFixed(1) + "°C" : "";
+            return '<li class="row"><span class="name">' + start + end + '</span><span class="meta">' + (e.mode || "") + " " + t + "</span></li>";
+          }).join("");
         }
       } catch (e) { console.warn(e); }
 

@@ -84,7 +84,7 @@ const frost = createFrostProgram({
         ts: new Date().toISOString(),
       });
     }
-    if (!INGEST_TOKEN) return;
+    if (!INGEST_TOKEN || !event.event_id) return;
     void fetch(`${POLJE_API}/v1/frost/events`, {
       method: "POST",
       headers: {

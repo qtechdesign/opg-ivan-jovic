@@ -39,6 +39,7 @@ Runs on **Polje Edge** (write-leader). States: `idle` → `watch` → `armed` �
 - Works with Starlink / Cloudflare down
 - Cloud `POST /v1/fps/arm` and valve open need `confirm: true` + `reason` (or return proposal only)
 - Exception: when already `armed` and live temp below threshold, Edge may spray without a second cloud confirm (still audited)
+- Spray start/end is written to D1 `frost_events` via `POST /v1/frost/events` (ingest token). GET `/v1/frost/status` returns the last five.
 
 ## Drivers
 

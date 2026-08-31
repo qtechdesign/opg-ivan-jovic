@@ -2,7 +2,7 @@
 
 Base: `https://opg-ivanjovic.hr` (also `www` and `*.workers.dev`).
 
-Auth for writes: Cloudflare secrets. Browser: `/login` (email + password) → HttpOnly cookie. API clients: `Authorization: Bearer <OPERATOR_TOKEN>`. Never commit passwords.
+Auth for **writes**: Cloudflare secrets. Browser: `/login` (email + password) → HttpOnly cookie. API clients: `Authorization: Bearer <OPERATOR_TOKEN>`. HTML pages and GET lists are public; admin is only for commands. Never commit passwords.
 
 ## Session
 
@@ -90,8 +90,9 @@ JPEG / PNG / WebP only, max 5 MB. R2 key: `{slug}/growth/{uuid}.{ext}`.
 |---|---|---|---|
 | GET | `/v1/fps/nodes` | no | devices with drivers `fps-sensor-node` / `fps-valve` + last readings |
 | GET | `/v1/fps/gateway` | no | `fps-lora-gw` device + packet metrics |
-| GET | `/v1/frost/status` | no | status, program, live temp/rh, Magnus dewpoint approx |
+| GET | `/v1/frost/status` | no | status, program, live temp/rh, Magnus dewpoint, last 5 `frost_events` |
 | GET | `/v1/iot/bus` | no | wraps local health + frost |
+| POST | `/v1/frost/events` | ingest | `{ farm_id, event_id, type: frost.spray_start\|frost.spray_end, temp_c?, rh?, mode?, reason? }` → D1 ledger |
 | POST | `/v1/fps/program` | operator | program JSON → `frost_programs` + command `fps.program.load` |
 | POST | `/v1/fps/arm` | operator | `{ confirm: true, reason }` or **proposal only** → command `fps.arm` / `fps.disarm` |
 | POST | `/v1/fps/valves/:id/open` | operator | `{ max_sec, reason, confirm: true }` → `fps.valve.open`; without confirm → proposal |

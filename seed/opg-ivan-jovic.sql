@@ -31,7 +31,8 @@ DELETE FROM readings WHERE device_id IN (
   'soil-n-1', 'temp-yard-1', 'edge-1',
   'cam-yard', 'cam-garden', 'cam-hay',
   'valve-garden-drip', 'valve-hay-frost',
-  'fps-gw-1', 'fps-sn-1', 'fps-valve-1'
+  'fps-gw-1', 'fps-sn-1', 'fps-valve-1',
+  'temp-house-1', 'heater-house-1', 'inv-1', 'ups-1'
 );
 DELETE FROM devices WHERE farm_id = 'a1000000-0000-4000-8000-000000000001';
 DELETE FROM plots WHERE farm_id = 'a1000000-0000-4000-8000-000000000001';
@@ -68,7 +69,11 @@ INSERT INTO devices (id, farm_id, kind, driver, name, zone, protocol, address, c
   ('valve-hay-frost', 'a1000000-0000-4000-8000-000000000001', 'actuator', 'mqtt-generic', 'Hay frost spray valve', 'Hay field', 'mqtt', 'polje/ivan-jovic/dev/valve-hay-frost/cmnd', NULL, NULL),
   ('fps-gw-1', 'a1000000-0000-4000-8000-000000000001', 'gateway', 'fps-lora-gw', 'FPS LoRa gateway', NULL, 'lora', 'polje/ivan-jovic/gw/fps-gw-1/health', NULL, NULL),
   ('fps-sn-1', 'a1000000-0000-4000-8000-000000000001', 'lora-node', 'fps-sensor-node', 'FPS hay sensor', 'Hay field', 'lora', 'polje/ivan-jovic/fps/fps-sn-1/stat', NULL, NULL),
-  ('fps-valve-1', 'a1000000-0000-4000-8000-000000000001', 'actuator', 'fps-valve', 'FPS frost valve', 'Hay field', 'lora', 'polje/ivan-jovic/dev/fps-valve-1/cmnd', '{"timeout_sec":600}', NULL);
+  ('fps-valve-1', 'a1000000-0000-4000-8000-000000000001', 'actuator', 'fps-valve', 'FPS frost valve', 'Hay field', 'lora', 'polje/ivan-jovic/dev/fps-valve-1/cmnd', '{"timeout_sec":600}', NULL),
+  ('temp-house-1', 'a1000000-0000-4000-8000-000000000001', 'sensor', 'mqtt-generic', 'Old house air', 'Old house', 'mqtt', 'polje/ivan-jovic/dev/temp-house-1/stat', NULL, NULL),
+  ('heater-house-1', 'a1000000-0000-4000-8000-000000000001', 'actuator', 'mqtt-generic', 'Old house heater', 'Old house', 'mqtt', 'polje/ivan-jovic/dev/heater-house-1/cmnd', '{"timeout_sec":1800}', NULL),
+  ('inv-1', 'a1000000-0000-4000-8000-000000000001', 'inverter', 'mqtt-generic', 'Inverter stub', NULL, 'mqtt', 'polje/ivan-jovic/dev/inv-1/stat', NULL, NULL),
+  ('ups-1', 'a1000000-0000-4000-8000-000000000001', 'battery', 'mqtt-generic', 'UPS stub', NULL, 'mqtt', 'polje/ivan-jovic/dev/ups-1/stat', NULL, NULL);
 
 INSERT INTO farm_settings (farm_id, rain_lockout, updated_at)
 VALUES ('a1000000-0000-4000-8000-000000000001', 0, '2026-08-31T00:00:00Z');
@@ -80,6 +85,25 @@ INSERT INTO irrigation_zones (id, farm_id, plot_id, name, kind, device_id, max_d
 -- Schedules disabled by default (no high-risk automations in seed)
 INSERT INTO irrigation_schedules (id, farm_id, zone_id, time_local, days_json, duration_sec, timezone, enabled) VALUES
   ('e1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000001', '06:00', '[1,2,3,4,5,6,0]', 600, 'Europe/Zagreb', 0);
+
+-- M6 climate + energy (heater stays OFF until a confirmed setpoint command)
+INSERT INTO climate_settings (farm_id, heat_battery_min_pct, updated_at)
+VALUES ('a1000000-0000-4000-8000-000000000001', 30, '2026-08-31T00:00:00Z');
+
+INSERT INTO climate_zones (
+  id, farm_id, plot_id, name, sensor_id, heater_id, cooler_id, battery_id,
+  heat_c, cool_c, heat_c_min, heat_c_max, cool_c_min, cool_c_max, timeout_sec, enabled
+) VALUES (
+  'f1000000-0000-4000-8000-000000000001',
+  'a1000000-0000-4000-8000-000000000001',
+  'b1000000-0000-4000-8000-000000000001',
+  'Old house climate',
+  'temp-house-1',
+  'heater-house-1',
+  NULL,
+  'ups-1',
+  18, 26, 5, 28, 10, 35, 1800, 1
+);
 
 -- M9 example automations: always disabled in seed
 INSERT INTO automations (id, farm_id, name, enabled, risk, trigger_json, action_json, cooldown_sec, last_fired_at, last_error, created_at) VALUES

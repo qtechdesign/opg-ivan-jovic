@@ -458,7 +458,7 @@ fpsApi.post("/v1/frost/events", async (c) => {
       )
       .run();
   } else {
-    await c.env.DB.prepare(
+    const upd = await c.env.DB.prepare(
       `UPDATE frost_events SET ended_at = ?, notes = COALESCE(?, notes),
          water_m3 = COALESCE(?, water_m3)
        WHERE id = ? AND farm_id = ?`
@@ -471,6 +471,23 @@ fpsApi.post("/v1/frost/events", async (c) => {
         farm.id
       )
       .run();
+    if (!upd.meta?.changes) {
+      await c.env.DB.prepare(
+        `INSERT INTO frost_events (id, farm_id, started_at, ended_at, min_temp_c, mode, water_m3, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          parsed.data.event_id,
+          farm.id,
+          now,
+          now,
+          parsed.data.temp_c ?? null,
+          parsed.data.mode ?? "ice",
+          parsed.data.water_m3 ?? null,
+          parsed.data.reason ?? "frost_auto"
+        )
+        .run();
+    }
   }
 
   await writeAudit(c.env.DB, {

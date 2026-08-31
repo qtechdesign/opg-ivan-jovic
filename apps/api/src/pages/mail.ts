@@ -203,7 +203,7 @@ export async function renderMail(c: Context<AppEnv>) {
         body.textContent = m.text_body || "(nema teksta)";
         const files = m.attachments || [];
         att.innerHTML = files.map((a) =>
-          '<li><button type="button" class="btn-ghost att-dl" data-url="' + a.url + '" data-name="' + escapeHtml(a.filename) + '">' + escapeHtml(a.filename) + "</button></li>"
+          '<li><button type="button" class="btn-ghost att-dl admin-only" data-url="' + a.url + '" data-name="' + escapeHtml(a.filename) + '">' + escapeHtml(a.filename) + "</button></li>"
         ).join("");
         att.querySelectorAll(".att-dl").forEach((btn) => {
           btn.onclick = async () => {

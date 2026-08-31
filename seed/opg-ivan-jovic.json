@@ -12,7 +12,8 @@
   ],
   "zones": [
     { "name": "Garden drip", "kind": "drip" },
-    { "name": "Hay / orchard frost line", "kind": "frost" }
+    { "name": "Hay / orchard frost line", "kind": "frost" },
+    { "name": "Old house climate", "kind": "climate" }
   ],
   "iot": {
     "mqtt": "mqtt.farm.lan:1883",

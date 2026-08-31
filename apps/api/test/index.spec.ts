@@ -501,6 +501,23 @@ describe("polje M1", () => {
     expect(html).toContain("Knjiga");
   });
 
+  it("GET farm pages without session are public HTML", async () => {
+    const pages: Array<[string, string]> = [
+      ["/water", "Voda"],
+      ["/klima", "Klima"],
+      ["/hands", "Ruke"],
+      ["/mail", "Pošta"],
+      ["/frost", "Mraz"],
+    ];
+    for (const [path, heading] of pages) {
+      const res = await app.request(path, {}, env);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain(heading);
+      expect(html).toContain("<nav>");
+    }
+  });
+
   it("GET /login returns HTML", async () => {
     const res = await app.request("/login", {}, env);
     expect(res.status).toBe(200);
@@ -736,6 +753,13 @@ describe("polje M7 money ledger", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { entries: unknown[] };
     expect(Array.isArray(body.entries)).toBe(true);
+  });
+
+  it("GET /v1/ledger/summary without token is public", async () => {
+    const res = await app.request("/v1/ledger/summary?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { income_cents: number };
+    expect(typeof body.income_cents).toBe("number");
   });
 
   it("POST /v1/ledger without token → 401", async () => {
@@ -1935,10 +1959,18 @@ describe("polje M4 FPS frost", () => {
     const res = await app.request("/v1/fps/nodes?farm=ivan-jovic", {}, env);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      nodes: Array<{ id: string; driver: string }>;
+      nodes: Array<{
+        id: string;
+        driver: string;
+        driver_kind?: string;
+        requires_timeout?: boolean;
+      }>;
     };
     expect(body.nodes.some((n) => n.id === "fps-sn-1")).toBe(true);
     expect(body.nodes.some((n) => n.id === "fps-valve-1")).toBe(true);
+    const valve = body.nodes.find((n) => n.id === "fps-valve-1");
+    expect(valve?.requires_timeout).toBe(true);
+    expect(valve?.driver_kind).toBe("actuator");
   });
 
   it("GET /v1/fps/gateway returns gateway", async () => {
@@ -2130,6 +2162,77 @@ describe("polje M4 FPS frost", () => {
     const html = await res.text();
     expect(html).toContain("Mraz");
     expect(html).toContain("ARM");
+    expect(html).toContain("Zadnji događaji");
+  });
+
+  it("POST /v1/frost/events ingest writes frost_events ledger", async () => {
+    const eventId = `frost-test-${crypto.randomUUID()}`;
+    const start = await app.request(
+      "/v1/frost/events",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          farm_id: "ivan-jovic",
+          event_id: eventId,
+          type: "frost.spray_start",
+          temp_c: -1.2,
+          rh: 96,
+          mode: "ice",
+          reason: "test spray start",
+        }),
+      },
+      env
+    );
+    expect(start.status).toBe(201);
+
+    const statusRes = await app.request(
+      "/v1/frost/status?farm=ivan-jovic",
+      {},
+      env
+    );
+    expect(statusRes.status).toBe(200);
+    const status = (await statusRes.json()) as {
+      recent_events: Array<{ id: string; ended_at: string | null }>;
+    };
+    expect(status.recent_events.some((e) => e.id === eventId)).toBe(true);
+    expect(
+      status.recent_events.find((e) => e.id === eventId)?.ended_at
+    ).toBeNull();
+
+    const end = await app.request(
+      "/v1/frost/events",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          farm_id: "ivan-jovic",
+          event_id: eventId,
+          type: "frost.spray_end",
+          reason: "test spray end",
+        }),
+      },
+      env
+    );
+    expect(end.status).toBe(201);
+
+    const after = await app.request(
+      "/v1/frost/status?farm=ivan-jovic",
+      {},
+      env
+    );
+    const afterBody = (await after.json()) as {
+      recent_events: Array<{ id: string; ended_at: string | null }>;
+    };
+    expect(
+      afterBody.recent_events.find((e) => e.id === eventId)?.ended_at
+    ).toBeTruthy();
   });
 
   it("GET /v1/iot/bus returns bus health", async () => {
