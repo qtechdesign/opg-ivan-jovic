@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { mkdirSync } from "node:fs";
 import mqtt from "mqtt";
 import { Outbox } from "./outbox.js";
+import { createCameraGrabber } from "./cameras.js";
 
 const FARM_ID = process.env.FARM_ID || "ivan-jovic";
 const MQTT_URL = process.env.MQTT_URL || "mqtt://127.0.0.1:1883";
@@ -13,6 +14,8 @@ const INGEST_TOKEN = process.env.INGEST_TOKEN || "";
 const DATA_DIR = process.env.POLJE_DATA || "/var/lib/polje";
 const FLUSH_MS = Number(process.env.FLUSH_MS || "5000");
 const PORT = Number(process.env.PORT || "8788");
+const SNAPSHOT_INTERVAL_SEC = Number(process.env.SNAPSHOT_INTERVAL_SEC || "600");
+const GO2RTC_URL = process.env.GO2RTC_URL || "http://127.0.0.1:1984";
 
 /** @type {{ device_id: string, metric: string, value: number, ts: string }[]} */
 const pending = [];
@@ -22,6 +25,13 @@ let mqttOk = "down";
 
 mkdirSync(DATA_DIR, { recursive: true });
 const outbox = new Outbox(`${DATA_DIR}/edge.db`);
+const cameras = createCameraGrabber({
+  dataDir: DATA_DIR,
+  poljeApi: POLJE_API,
+  ingestToken: INGEST_TOKEN,
+  farmId: FARM_ID,
+  go2rtcUrl: GO2RTC_URL,
+});
 
 /** @param {string} topic */
 function topicDeviceId(topic) {
@@ -75,6 +85,7 @@ async function flushOnce() {
         mqtt: mqttOk,
         edge: "ok",
         gateway: "n/a",
+        nvr: cameras.getNvrStatus(),
       },
     };
     outbox.enqueue(batch.batch_id, batch);
@@ -149,6 +160,15 @@ function main() {
     void flushOnce();
   }, FLUSH_MS);
 
+  // Snapshot interval (default 10 min) + urgent poll for snapshot.take commands
+  void cameras.tick();
+  setInterval(() => {
+    void cameras.tick();
+  }, SNAPSHOT_INTERVAL_SEC * 1000);
+  setInterval(() => {
+    void cameras.pollUrgent();
+  }, 30000);
+
   createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
@@ -158,6 +178,7 @@ function main() {
         farm_id: FARM_ID,
         mqtt: mqttOk,
         starlink,
+        nvr: cameras.getNvrStatus(),
         outbox_pending: outbox.pendingCount(),
       })
     );

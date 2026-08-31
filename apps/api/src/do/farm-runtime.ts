@@ -16,6 +16,7 @@ export type FarmLiveState = {
   edge?: string;
   mqtt?: string;
   gateway?: string;
+  nvr?: "ok" | "down" | "unconfigured";
   edge_seen_at: string | null;
   last_ingest_at: string | null;
   last_batch_id: string | null;
@@ -80,6 +81,7 @@ export class FarmRuntime extends DurableObject<Env> {
         edge: state.edge,
         mqtt: state.mqtt,
         gateway: state.gateway,
+        nvr: state.nvr,
         edge_seen_at: state.edge_seen_at,
         last_ingest_at: state.last_ingest_at,
         last_batch_id: state.last_batch_id,
@@ -123,6 +125,7 @@ export class FarmRuntime extends DurableObject<Env> {
     if (batch.health?.edge) state.edge = batch.health.edge;
     if (batch.health?.mqtt) state.mqtt = batch.health.mqtt;
     if (batch.health?.gateway) state.gateway = batch.health.gateway;
+    if (batch.health?.nvr) state.nvr = batch.health.nvr;
     state.edge_seen_at = now;
     state.last_ingest_at = batch.sent_at || now;
     state.last_batch_id = batch.batch_id;

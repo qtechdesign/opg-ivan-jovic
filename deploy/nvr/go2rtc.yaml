@@ -1,0 +1,12 @@
+# go2rtc — streams filled from env at compose time via go2rtc.generated.yaml
+# Do not commit real RTSP URLs. Copy .env.example → .env and set CAMERA_*_RTSP.
+
+api:
+  listen: ":1984"
+
+# Streams are empty by default; Edge uses placeholder JPEGs until RTSP is set.
+# When CAMERA_YARD_RTSP is set, regenerate with:
+#   ./scripts/render-go2rtc-config.sh
+# or mount a custom go2rtc.generated.yaml.
+
+streams: {}

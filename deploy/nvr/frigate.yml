@@ -1,0 +1,22 @@
+# Frigate template for when cameras exist (profile: cameras).
+# Put RTSP URLs in deploy/edge/.env only — never in git.
+# Minimal config so `docker compose --profile cameras up` starts without detectors.
+
+mqtt:
+  enabled: false
+
+cameras:
+  cam_yard:
+    enabled: false
+    ffmpeg:
+      inputs: []
+
+detectors:
+  cpu:
+    type: cpu
+
+record:
+  enabled: false
+
+snapshots:
+  enabled: false

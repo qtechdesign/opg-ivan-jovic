@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { IngestBatch } from "@polje/schema";
 import { api } from "./routes/api";
 import { renderHome, renderLand } from "./pages/land";
+import { renderEyes } from "./pages/eyes";
 import { FarmRuntime, farmStub } from "./do/farm-runtime";
 
 type Bindings = Cloudflare.Env;
@@ -11,6 +12,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.route("/", api);
 app.get("/", (c) => renderHome(c));
 app.get("/land", (c) => renderLand(c));
+app.get("/eyes", (c) => renderEyes(c));
 
 async function handleQueue(
   batch: MessageBatch<IngestBatch>,

@@ -55,6 +55,23 @@ export async function renderHome(c: Context<AppEnv>) {
   const status = farm ? "ONLINE" : "UNSEEDED";
   const statusClass = farm ? "ok" : "warn";
 
+  let yardStill = "";
+  if (farm) {
+    const yardSnap = await c.env.DB.prepare(
+      `SELECT camera_id FROM camera_snapshots WHERE camera_id = 'cam-yard' AND farm_id = ?`
+    )
+      .bind(farm.id)
+      .first();
+    if (yardSnap) {
+      yardStill = `<section class="panel">
+      <h2>Dvorište · snimka</h2>
+      <a class="thumbs" href="/eyes" style="display:block;max-width:360px">
+        <img src="/v1/cameras/cam-yard/latest" alt="Yard still" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border:1px solid var(--hairline);border-radius:4px" />
+      </a>
+    </section>`;
+    }
+  }
+
   return c.html(`<!DOCTYPE html>
 <html lang="hr" data-solar="day" data-wx="clear">
 <head>
@@ -77,12 +94,13 @@ export async function renderHome(c: Context<AppEnv>) {
     <nav>
       <a href="/">Pregled</a>
       <a href="/land">Zemlja</a>
+      <a href="/eyes">Oči</a>
     </nav>
     <span class="pip ${statusClass}" id="starlink-pip">STARLINK · —</span>
   </header>
   <main>
     <h1>${escapeHtml(title)}</h1>
-    <p class="sub">Konzola farme · M2 edge/ingest · Europa/Zagreb</p>
+    <p class="sub">Konzola farme · M3 oči · Europa/Zagreb</p>
     <div class="metrics">
       <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">Temp</div></div>
       <div class="metric"><div><span class="n" id="m-soil">—</span><span class="u">moist</span></div><div class="l">Tlo</div></div>
@@ -92,8 +110,10 @@ export async function renderHome(c: Context<AppEnv>) {
       <h2>Parcele</h2>
       <ul>${plotsHtml}</ul>
     </section>
+    ${yardStill}
     <p class="actions">
       <a class="btn-ghost" href="/land">Zemlja · ledger</a>
+      <a class="btn-ghost" href="/eyes">Oči · kamere</a>
       <a class="btn-ghost" href="/v1/overview?farm=ivan-jovic">JSON · overview</a>
       <a class="btn-ghost" href="/v1/local/health?farm=ivan-jovic">Local health</a>
       <a class="btn-ghost" href="/v1/health">Health</a>
@@ -264,6 +284,7 @@ export async function renderLand(c: Context<AppEnv>) {
     <nav>
       <a href="/">Pregled</a>
       <a href="/land">Zemlja</a>
+      <a href="/eyes">Oči</a>
     </nav>
     <span class="pip ok">LAND</span>
   </header>

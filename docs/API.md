@@ -16,6 +16,9 @@ Auth for writes: `Authorization: Bearer <OPERATOR_TOKEN>` (Cloudflare secret).
 | GET | `/v1/media/:id` | image bytes from R2 via Worker |
 | GET | `/` | overview HTML |
 | GET | `/land` | land ledger HTML (M1) |
+| GET | `/eyes` | camera stills grid (M3) |
+| GET | `/v1/cameras?farm=ivan-jovic` | camera devices + last snapshot meta |
+| GET | `/v1/cameras/:id/latest` | JPEG from R2 (404 if none) |
 
 ## Operator (Bearer)
 
@@ -37,6 +40,17 @@ Auth for writes: `Authorization: Bearer <OPERATOR_TOKEN>` (Cloudflare secret).
 | WS | `/v1/live?farm=ivan-jovic` | no | live metric events from DO |
 
 Idempotent on `batch_id` (24h). See `docs/IOT.md` and `docs/LOCAL-SERVERS.md`.
+
+## Cameras (M3)
+
+| Method | Path | Auth | Body / notes |
+|---|---|---|---|
+| POST | `/v1/ingest/media` | Bearer `INGEST_TOKEN` | multipart: `file` (JPEG ≤2MB), `camera_id`, `source` (`rtsp`\|`placeholder`), `farm_slug` → R2 `{slug}/cameras/{id}/latest.jpg` + upsert `camera_snapshots` |
+| POST | `/v1/cameras/:id/snapshot` | operator | queue `snapshot.take` command (`sent`); Edge polls |
+| GET | `/v1/commands?farm=&status=sent&action=snapshot.take` | operator or ingest | Edge command poll |
+| PATCH | `/v1/commands/:id` | operator or ingest | `{ status: "acked"\|"failed"\|"cancelled" }` |
+
+No `/v1/stream/:id` in M3. See `docs/STARLINK.md`.
 
 Every write inserts an `audit` row (`user:operator` or `edge`).
 

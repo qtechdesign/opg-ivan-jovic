@@ -1,4 +1,4 @@
-# Polje Edge — Mosquitto + Edge + optional Frigate (M3)
+# Polje Edge — Mosquitto + Edge + go2rtc + optional Frigate
 services:
   mosquitto:
     image: eclipse-mosquitto:2
@@ -10,6 +10,14 @@ services:
       - mosquitto-data:/mosquitto/data
     restart: unless-stopped
 
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    ports:
+      - "1984:1984"
+    volumes:
+      - ../nvr/go2rtc.yaml:/config/go2rtc.yaml:ro
+    restart: unless-stopped
+
   edge:
     build: ../../apps/edge
     environment:
@@ -18,10 +26,16 @@ services:
       INGEST_TOKEN: ${INGEST_TOKEN}
       FARM_ID: ivan-jovic
       FLUSH_MS: "5000"
+      SNAPSHOT_INTERVAL_SEC: ${SNAPSHOT_INTERVAL_SEC:-600}
+      GO2RTC_URL: http://go2rtc:1984
+      CAMERA_YARD_RTSP: ${CAMERA_YARD_RTSP:-}
+      CAMERA_GARDEN_RTSP: ${CAMERA_GARDEN_RTSP:-}
+      CAMERA_HAY_RTSP: ${CAMERA_HAY_RTSP:-}
     volumes:
       - edge-data:/var/lib/polje
     depends_on:
       - mosquitto
+      - go2rtc
     restart: unless-stopped
     ports:
       - "8788:8788"
@@ -40,9 +54,13 @@ services:
 
   nvr:
     image: ghcr.io/blakeblackshear/frigate:stable
+    volumes:
+      - ../nvr/frigate.yml:/config/config.yml:ro
+      - frigate-media:/media/frigate
     restart: unless-stopped
     profiles: ["cameras"]
 
 volumes:
   mosquitto-data:
   edge-data:
+  frigate-media:

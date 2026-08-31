@@ -9,16 +9,16 @@ House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour
 - https://opg-ivanjovic.hr
 - https://www.opg-ivanjovic.hr
 - Debug: https://polje.quiet-lab-19ab.workers.dev
-- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, land ledger at `/land`
+- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, land at `/land`, eyes at `/eyes`
 - Docs: [`docs/API.md`](docs/API.md)
 
 If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1.1 opg-ivanjovic.hr`) — custom domains are attached and serving.
 
-## Stack (M0–M2)
+## Stack (M0–M3)
 
 | Piece | Role |
 |---|---|
-| Cloudflare Worker (Hono) | HTTP API + HTML console (`/`, `/land`) |
+| Cloudflare Worker (Hono) | HTTP API + HTML console (`/`, `/land`, `/eyes`) |
 | D1 | Relational ledger (farms, plots, plantings, audit, …) |
 | R2 `polje-media` | Growth diary photos |
 | Queue `polje-ingest` + FarmRuntime DO | Live telemetry + WS |
@@ -50,6 +50,7 @@ Then:
 
 - http://127.0.0.1:8787/
 - http://127.0.0.1:8787/land
+- http://127.0.0.1:8787/eyes
 - http://127.0.0.1:8787/v1/overview?farm=ivan-jovic
 
 Local MQTT + Edge (optional):

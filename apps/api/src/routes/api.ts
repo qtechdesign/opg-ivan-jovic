@@ -7,7 +7,7 @@ import {
   type Planting,
   type Plot,
 } from "@polje/schema";
-import { requireIngest, requireOperator } from "../lib/auth";
+import { requireIngest, requireOperator, requireOperatorOrIngest } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { DEFAULT_FARM_SLUG, getFarmBySlug } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
@@ -593,5 +593,306 @@ api.get("/v1/live", async (c) => {
   const stub = farmStub(c.env, slug);
   return stub.fetch(
     new Request(`https://do/ws?farm_id=${encodeURIComponent(slug)}`, c.req.raw)
+  );
+});
+
+const SNAPSHOT_MAX = 2 * 1024 * 1024;
+
+api.get("/v1/cameras", async (c) => {
+  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const { results: cameras } = await c.env.DB.prepare(
+    `SELECT id, farm_id, name, zone, driver, protocol, last_seen
+     FROM devices WHERE farm_id = ? AND kind = 'camera' ORDER BY name`
+  )
+    .bind(farm.id)
+    .all<{
+      id: string;
+      farm_id: string;
+      name: string;
+      zone: string | null;
+      driver: string;
+      protocol: string | null;
+      last_seen: string | null;
+    }>();
+
+  const { results: snaps } = await c.env.DB.prepare(
+    `SELECT camera_id, r2_key, source, captured_at FROM camera_snapshots WHERE farm_id = ?`
+  )
+    .bind(farm.id)
+    .all<{
+      camera_id: string;
+      r2_key: string;
+      source: string;
+      captured_at: string;
+    }>();
+
+  const snapMap = new Map((snaps ?? []).map((s) => [s.camera_id, s]));
+
+  return c.json({
+    farm_id: farm.id,
+    slug: farm.slug,
+    cameras: (cameras ?? []).map((cam) => {
+      const s = snapMap.get(cam.id);
+      return {
+        ...cam,
+        snapshot: s
+          ? {
+              r2_key: s.r2_key,
+              source: s.source,
+              captured_at: s.captured_at,
+              url: `/v1/cameras/${cam.id}/latest`,
+            }
+          : null,
+      };
+    }),
+  });
+});
+
+api.get("/v1/cameras/:id/latest", async (c) => {
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare(
+    `SELECT camera_id, r2_key, content_type FROM camera_snapshots WHERE camera_id = ?`
+  )
+    .bind(id)
+    .first<{ camera_id: string; r2_key: string; content_type: string }>();
+
+  if (!row) {
+    return c.json({ error: "snapshot_not_found" }, 404);
+  }
+
+  const obj = await c.env.MEDIA.get(row.r2_key);
+  if (!obj) {
+    return c.json({ error: "object_missing" }, 404);
+  }
+
+  const bytes = await obj.arrayBuffer();
+  const headers = new Headers();
+  headers.set("Content-Type", row.content_type || "image/jpeg");
+  headers.set("Cache-Control", "public, max-age=60");
+  return new Response(bytes, { headers });
+});
+
+api.post("/v1/cameras/:id/snapshot", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  const cam = await c.env.DB.prepare(
+    `SELECT id, farm_id, name FROM devices WHERE id = ? AND kind = 'camera'`
+  )
+    .bind(id)
+    .first<{ id: string; farm_id: string; name: string }>();
+
+  if (!cam) {
+    return c.json({ error: "camera_not_found" }, 404);
+  }
+
+  const cmdId = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+  await c.env.DB.prepare(
+    `INSERT INTO commands (id, farm_id, device_id, action, payload_json, source, status, confirmed_by, created_at)
+     VALUES (?, ?, ?, 'snapshot.take', ?, 'ui', 'sent', 'user:operator', ?)`
+  )
+    .bind(
+      cmdId,
+      cam.farm_id,
+      cam.id,
+      JSON.stringify({ reason: "manual" }),
+      created_at
+    )
+    .run();
+
+  await writeAudit(c.env.DB, {
+    farm_id: cam.farm_id,
+    actor: "user:operator",
+    action: "camera.snapshot.request",
+    entity: `camera:${cam.id}`,
+    after: { command_id: cmdId },
+  });
+
+  return c.json(
+    { ok: true, command_id: cmdId, camera_id: cam.id, status: "sent" },
+    202
+  );
+});
+
+api.get("/v1/commands", async (c) => {
+  const denied = await requireOperatorOrIngest(c);
+  if (denied) return denied;
+
+  const slug = c.req.query("farm") || DEFAULT_FARM_SLUG;
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const status = c.req.query("status") || "sent";
+  const action = c.req.query("action");
+  const deviceId = c.req.query("device_id");
+
+  let sql = `SELECT id, farm_id, device_id, action, payload_json, source, status, created_at
+             FROM commands WHERE farm_id = ? AND status = ?`;
+  const binds: (string | number)[] = [farm.id, status];
+  if (action) {
+    sql += ` AND action = ?`;
+    binds.push(action);
+  }
+  if (deviceId) {
+    sql += ` AND device_id = ?`;
+    binds.push(deviceId);
+  }
+  sql += ` ORDER BY created_at ASC LIMIT 50`;
+
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  return c.json({ farm_id: farm.id, commands: results ?? [] });
+});
+
+api.patch("/v1/commands/:id", async (c) => {
+  const denied = await requireOperatorOrIngest(c);
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  let body: { status?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const status = body.status;
+  if (!status || !["acked", "failed", "cancelled"].includes(status)) {
+    return c.json({ error: "invalid_status" }, 400);
+  }
+
+  const row = await c.env.DB.prepare(
+    `SELECT id, farm_id, device_id, action, status FROM commands WHERE id = ?`
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      farm_id: string;
+      device_id: string;
+      action: string;
+      status: string;
+    }>();
+
+  if (!row) {
+    return c.json({ error: "command_not_found" }, 404);
+  }
+
+  await c.env.DB.prepare(`UPDATE commands SET status = ? WHERE id = ?`)
+    .bind(status, id)
+    .run();
+
+  await writeAudit(c.env.DB, {
+    farm_id: row.farm_id,
+    actor: "edge",
+    action: "command.update",
+    entity: `command:${id}`,
+    before: { status: row.status },
+    after: { status },
+  });
+
+  return c.json({ ok: true, id, status });
+});
+
+api.post("/v1/ingest/media", async (c) => {
+  const denied = await requireIngest(c);
+  if (denied) return denied;
+
+  let form: FormData;
+  try {
+    form = await c.req.formData();
+  } catch {
+    return c.json({ error: "invalid_multipart" }, 400);
+  }
+
+  const file = form.get("file");
+  if (!(file instanceof File)) {
+    return c.json({ error: "file_required" }, 400);
+  }
+  const fileType = (file.type || "").toLowerCase();
+  const fileName = (file.name || "").toLowerCase();
+  const isJpeg =
+    fileType === "image/jpeg" ||
+    fileType === "image/jpg" ||
+    (!fileType && (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")));
+  if (!isJpeg) {
+    return c.json({ error: "unsupported_type", allowed: ["image/jpeg"] }, 400);
+  }
+  if (file.size > SNAPSHOT_MAX) {
+    return c.json({ error: "file_too_large", max_bytes: SNAPSHOT_MAX }, 400);
+  }
+
+  const camera_id = String(form.get("camera_id") || "");
+  if (!camera_id) {
+    return c.json({ error: "camera_id_required" }, 400);
+  }
+
+  const sourceRaw = String(form.get("source") || "placeholder");
+  const source = sourceRaw === "rtsp" ? "rtsp" : "placeholder";
+  const slug = String(form.get("farm_slug") || DEFAULT_FARM_SLUG);
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+
+  const cam = await c.env.DB.prepare(
+    `SELECT id FROM devices WHERE id = ? AND farm_id = ? AND kind = 'camera'`
+  )
+    .bind(camera_id, farm.id)
+    .first();
+  if (!cam) {
+    return c.json({ error: "camera_not_found" }, 404);
+  }
+
+  const captured_at = new Date().toISOString();
+  const r2_key = `${farm.slug}/cameras/${camera_id}/latest.jpg`;
+  const bytes = await file.arrayBuffer();
+
+  await c.env.MEDIA.put(r2_key, bytes, {
+    httpMetadata: { contentType: "image/jpeg" },
+    customMetadata: { camera_id, source },
+  });
+
+  await c.env.DB.prepare(
+    `INSERT INTO camera_snapshots (camera_id, farm_id, r2_key, content_type, source, captured_at)
+     VALUES (?, ?, ?, 'image/jpeg', ?, ?)
+     ON CONFLICT(camera_id) DO UPDATE SET
+       r2_key = excluded.r2_key,
+       content_type = excluded.content_type,
+       source = excluded.source,
+       captured_at = excluded.captured_at`
+  )
+    .bind(camera_id, farm.id, r2_key, source, captured_at)
+    .run();
+
+  await c.env.DB.prepare(`UPDATE devices SET last_seen = ? WHERE id = ?`)
+    .bind(captured_at, camera_id)
+    .run();
+
+  await writeAudit(c.env.DB, {
+    farm_id: farm.id,
+    actor: "edge",
+    action: "camera.snapshot",
+    entity: `camera:${camera_id}`,
+    after: { r2_key, source, captured_at },
+  });
+
+  return c.json(
+    {
+      ok: true,
+      camera_id,
+      r2_key,
+      source,
+      captured_at,
+      url: `/v1/cameras/${camera_id}/latest`,
+    },
+    201
   );
 });

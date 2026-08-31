@@ -33,6 +33,26 @@ export async function requireIngest(
   return requireBearer(c, c.env.INGEST_TOKEN, "INGEST_TOKEN");
 }
 
+/** Accept either OPERATOR_TOKEN or INGEST_TOKEN (Edge polls commands). */
+export async function requireOperatorOrIngest(
+  c: Context<AppEnv>
+): Promise<Response | null> {
+  const header = c.req.header("Authorization") ?? "";
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  if (!match) {
+    return c.json(
+      { error: "unauthorized", hint: "Bearer OPERATOR_TOKEN|INGEST_TOKEN" },
+      401
+    );
+  }
+  const token = match[1].trim();
+  const op = c.env.OPERATOR_TOKEN;
+  const ing = c.env.INGEST_TOKEN;
+  if (op && (await timingSafeEqualString(token, op))) return null;
+  if (ing && (await timingSafeEqualString(token, ing))) return null;
+  return c.json({ error: "unauthorized" }, 401);
+}
+
 async function requireBearer(
   c: Context<AppEnv>,
   expected: string | undefined,

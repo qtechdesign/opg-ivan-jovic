@@ -132,6 +132,7 @@ export const IngestBatchSchema = z.object({
       gateway: z.string().optional(),
       mqtt: z.string().optional(),
       edge: z.string().optional(),
+      nvr: z.enum(["ok", "down", "unconfigured"]).optional(),
     })
     .optional(),
 });
@@ -144,9 +145,31 @@ export const LocalHealthSchema = z.object({
   edge: z.string().optional(),
   mqtt: z.string().optional(),
   gateway: z.string().optional(),
+  nvr: z.enum(["ok", "down", "unconfigured"]).optional(),
   edge_seen_at: z.string().nullable(),
   last_ingest_at: z.string().nullable(),
   last_batch_id: z.string().nullable(),
 });
 
 export type LocalHealth = z.infer<typeof LocalHealthSchema>;
+
+export const CameraSchema = z.object({
+  id: z.string().min(1),
+  farm_id: z.string().uuid(),
+  name: z.string().min(1),
+  zone: z.string().nullable().optional(),
+  driver: z.string(),
+  protocol: z.string().nullable().optional(),
+  last_seen: z.string().nullable().optional(),
+  snapshot: z
+    .object({
+      r2_key: z.string(),
+      source: z.enum(["rtsp", "placeholder"]),
+      captured_at: z.string(),
+      url: z.string(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export type Camera = z.infer<typeof CameraSchema>;
