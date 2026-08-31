@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/llRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorBackGroundTint">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!--Data-->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="10dp"
+            android:background="@color/colorWhite"
+            app:cardCornerRadius="4dp">
+
+            <com.google.android.flexbox.FlexboxLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:layout_marginBottom="20dp"
+                app:alignContent="stretch"
+                app:alignItems="stretch"
+                app:flexWrap="wrap">
+
+                <!--Wind-->
+                <LinearLayout
+                    android:id="@+id/llWind"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/anemometer" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvWindSpeed"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvWindSpeed"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvWindData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvWindDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!--Wind Direction-->
+                <LinearLayout
+                    android:id="@+id/llWindDirection"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/wind" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvWindDirection"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvWindDirectionData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvWindDirectionDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!--Air Press-->
+                <LinearLayout
+                    android:id="@+id/llAirPress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/meter" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvAirPress"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvAirPressData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvAirDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+
+                <!--Wind Direction-->
+                <LinearLayout
+                    android:id="@+id/llWaterPress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/meter" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvWaterPress"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvWaterPressData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvAirDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!--Temp1-->
+                <LinearLayout
+                    android:id="@+id/llTemp1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/hot" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvTemp1"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvTemp1Data"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvTempDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+
+                <!--Temp2-->
+                <LinearLayout
+                    android:id="@+id/lLTemp2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/hot" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvTemp2"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvTemp2Data"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvTempDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Hum-->
+                <LinearLayout
+                    android:id="@+id/lLHum"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/humidity" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvHumidity"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvHumData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvHumidityDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+
+                <!--Soil-->
+                <LinearLayout
+                    android:id="@+id/LlHoid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <ImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/farming" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvSoilMoisture"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvSoilData"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/font_app"
+                            android:text="@string/realTimeSensorNodeFragmentTvHumidityDefault"
+                            android:textColor="#377C6D"
+                            android:textSize="14dp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!--Battery-->
+
+                <LinearLayout
+                    android:id="@+id/lLBattery"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="fill"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    app:layout_flexBasisPercent="50%">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:src="@drawable/battery" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/font_app"
+                                android:text="@string/realTimeSensorNodeFragmentTvBattery"
+                                android:textColor="#377C6D"
+                                android:textSize="14dp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvBatteryData"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="@font/font_app"
+                                android:text="@string/realTimeSensorNodeFragmentTvBatteryDefault"
+                                android:textColor="#377C6D"
+                                android:textSize="14dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.flexbox.FlexboxLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!--Text view last update-->
+        <TextView
+            android:id="@+id/tvLastUpdate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="22dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/realTimeSensorNodeFragmentTvLastUpdate"
+            android:textColor="#377C6D"
+            android:textSize="15dp"
+            android:textStyle="bold" />
+
+        <!-- Button Control-->
+
+        <Button
+            android:id="@+id/btnRefreshRealTimeSensor"
+            android:layout_width="132dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginStart="19dp"
+            android:layout_marginTop="22dp"
+            android:layout_marginEnd="19dp"
+            android:background="@drawable/bg_btn_app_white"
+            android:drawableStart="@drawable/update_arrows"
+            android:fontFamily="@font/font_app"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/realTimeSensorNodeFragmentTvBtRefresh"
+            android:textAllCaps="false"
+            android:textColor="#377C6D"
+            android:textSize="17dp" />
+
+        <Button
+            android:id="@+id/btnHistory"
+            android:layout_width="132dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginStart="19dp"
+            android:layout_marginTop="22dp"
+            android:layout_marginEnd="19dp"
+            android:background="@drawable/bg_btn_app_green"
+            android:fontFamily="@font/font_app"
+            android:text="@string/realTimeSensorNodeFragmentTvBtnHistory"
+            android:textAllCaps="false"
+            android:textColor="@color/colorWhite"
+            android:textSize="17dp" />
+
+
+        <!--Recycler View data log-->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listLogNode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp" />
+
+    </LinearLayout>
+
+</ScrollView>

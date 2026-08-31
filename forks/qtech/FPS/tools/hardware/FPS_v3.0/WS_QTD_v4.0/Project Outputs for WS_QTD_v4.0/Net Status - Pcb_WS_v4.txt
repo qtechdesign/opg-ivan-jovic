@@ -1,0 +1,69 @@
+Net Status Report
+Filename     : D:\Google Drive\AltiumSYNC\projects\QTD\Proj_weather_station_v4.0\WS_QTD_v4.0\Pcb_WS_v4.PcbDoc
+Date         : 09-Jan-21
+Time         : 7:13:06 PM
+Time Elapsed : 00:00:00
+
+Nets, Layer, Length
+    ANT_M, Signal Layers Only, 0mils
+    ANT_M1, Signal Layers Only, 0mils
+    AREF, Signal Layers Only, 186.821mils
+    AUX, Signal Layers Only, 191.795mils
+    BAT-VSEN, Signal Layers Only, 0mils
+    BAT-VSEN-Q, Signal Layers Only, 107.992mils
+    CLOSE1, Signal Layers Only, 0mils
+    CLOSE2, Signal Layers Only, 0mils
+    COM1, Signal Layers Only, 0mils
+    COM2, Signal Layers Only, 0mils
+    DATA-AP1, Signal Layers Only, 188.941mils
+    DATA-AP2, Signal Layers Only, 113.749mils
+    DATA-DS1, Signal Layers Only, 113.749mils
+    DATA-DS2, Signal Layers Only, 113.749mils
+    GND, Signal Layers Only, 315.593mils
+    GND-SOLAR, Signal Layers Only, 0mils
+    LED, Signal Layers Only, 186.821mils
+    M0, Signal Layers Only, 108.775mils
+    M1, Signal Layers Only, 186.821mils
+    MISO, Signal Layers Only, 188.941mils
+    MOSI, Signal Layers Only, 107.992mils
+    NetD2_1, Signal Layers Only, 0mils
+    NetD4R1_2, Signal Layers Only, 0mils
+    NetD4R2_2, Signal Layers Only, 0mils
+    NetIC2R1_1, Signal Layers Only, 0mils
+    NetIC2R2_1, Signal Layers Only, 0mils
+    NetLED1_1, Signal Layers Only, 0mils
+    NetLED2R1_1, Signal Layers Only, 0mils
+    NetLED2R2_1, Signal Layers Only, 0mils
+    NetQ2_1, Signal Layers Only, 0mils
+    NetQ3R1_1, Signal Layers Only, 0mils
+    NetQ3R2_1, Signal Layers Only, 0mils
+    NetR7_2, Signal Layers Only, 0mils
+    NetU1_19, Signal Layers Only, 108.775mils
+    NetU1_22, Signal Layers Only, 181.456mils
+    NetU2_10, Signal Layers Only, 0mils
+    NetU2_11, Signal Layers Only, 0mils
+    NetU2_12, Signal Layers Only, 0mils
+    NetU2_13, Signal Layers Only, 0mils
+    NetU2_14, Signal Layers Only, 0mils
+    OPEN1, Signal Layers Only, 0mils
+    OPEN2, Signal Layers Only, 0mils
+    P12V-BAT, Signal Layers Only, 0mils
+    P16V-SOLAR, Signal Layers Only, 0mils
+    P5V-Main, Signal Layers Only, 1539.358mils
+    P5V-SEN, Signal Layers Only, 0mils
+    RESET-E32, Signal Layers Only, 191.795mils
+    RL-CTL1, Signal Layers Only, 191.795mils
+    RL-CTL2, Signal Layers Only, 108.775mils
+    RL-CTR1, Signal Layers Only, 0mils
+    RL-CTR2, Signal Layers Only, 0mils
+    RST-E32, Signal Layers Only, 0mils
+    RST_MCU, Signal Layers Only, 103.409mils
+    RXD-E32, Signal Layers Only, 103.409mils
+    RXM, Signal Layers Only, 181.456mils
+    SCK, Signal Layers Only, 113.749mils
+    TXD-E32, Signal Layers Only, 181.456mils
+    TXM, Signal Layers Only, 107.992mils
+    WAKE, Signal Layers Only, 188.941mils
+    XTAL1, Signal Layers Only, 107.992mils
+    XTAL2, Signal Layers Only, 188.941mils
+count : 61

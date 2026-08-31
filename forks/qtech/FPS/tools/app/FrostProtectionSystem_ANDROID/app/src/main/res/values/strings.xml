@@ -1,0 +1,187 @@
+<resources>
+    <string name="app_name_test">frostprotectionsystemandroid</string>
+
+    <!-- Login Fragment-->
+    <string name="loginFragmentTvTitle">Frost Protection System</string>
+    <string name="loginFragmentTvEmail">Email</string>
+    <string name="loginFragmentTvEmailHint">abc@gmail.com</string>
+    <string name="loginFragmentTvPass">Password</string>
+    <string name="loginFragmentTvPassHint">********</string>
+    <string name="loginFragmentTvRememberMe">Remember me</string>
+    <string name="loginFragmentTvForgotPass">Forgot Password?</string>
+    <string name="loginFragmentTvLogin">Login</string>
+    <string name="loginFragmentTvLoginWith">Login With</string>
+    <string name="loginFragmentTvNotHaveAcc">Don’t have an account?&#160;</string>
+    <string name="loginFragmentTvCreateNowAcc">&#160;Create Now</string>
+    <string name="loginFragmentTvOr">OR</string>
+    <string name="loginFragmentLoginWithGGFailed">Google sign in failed</string>
+
+    <!-- SignUp Fragment-->
+    <string name="signUpFragmentTvTitle">SIGN-UP</string>
+    <string name="signUpFragmentTvName">Name*</string>
+    <string name="signUpFragmentTvNameHint">Jon Snow</string>
+    <string name="signUpFragmentTvMail">Email*</string>
+    <string name="signUpFragmentTvPass">Password*</string>
+    <string name="signUpFragmentTvIHaveRead">I have read the&#160;</string>
+    <string name="signUpFragmentTvTerm">&#160;Term &amp; Conditions</string>
+    <string name="signUpFragmentTvCreateNow">Create Now</string>
+    <string name="signUpFragmentTvHaveAcc">Already have an account?&#160;</string>
+    <string name="signUpFragmentTvLoginNow">&#160;Login Now</string>
+    <string name="signUpFragmentEmptyUsername">Your Name Is Empty</string>
+    <string name="signUpFragmentSignUpSuccess">Registration Successful.\nPress OK to continue!</string>
+
+    <!-- Forgot Pass Fragment-->
+    <string name="forgotPassFragmentTvTitle">FORGOT PASSWORD</string>
+    <string name="forgotPassFragmentTvSend">Send Mail</string>
+    <string name="forgotPassFragmentTvEnterYourEmail">Enter your registered email</string>
+    <string name="forgotPassFragmentEmailSent">Email sent!</string>
+
+    <!-- Main App Fragment-->
+    <string name="title_activity_main2">Main2Activity</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="nav_header_title">User Name</string>
+    <string name="nav_header_subtitle">mail@mail.com</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">Settings</string>
+
+    <!-- Gateways Fragment-->
+    <string name="gatewaysFragmentTvTitle">Home</string>
+    <string name="gatewaysFragmentTvGateWaysHint">0 Gateways</string>
+    <string name="gatewaysFragmentTvGateWaysNumHint">Gateway 0</string>
+    <string name="gatewaysFragmentTvGateWays">%d Gateways</string>
+    <string name="gatewaysFragmentTvDevicesHint">0 Devices</string>
+    <string name="gatewaysFragmentTvDevices">%d Devices</string>
+    <string name="gatewaysFragmentDialogLogout">Do you want to logout?</string>
+    <string name="gatewaysFragmentHintSearch">Search …</string>
+
+    <!-- Add Gateways Fragment-->
+    <string name="addGatewaysFragmentHintSearch">Add new Gateway</string>
+    <string name="addGatewaysFragmentTvName">Name</string>
+    <string name="addGatewaysFragmentTvLoraId">Lora ID</string>
+    <string name="addGatewaysFragmentTvScanQR">Serial Key</string>
+    <string name="addGatewaysFragmentTvPosition">Position</string>
+    <string name="addGatewaysFragmentTvLat">Lat</string>
+    <string name="addGatewaysFragmentTvLong">Long</string>
+    <string name="addGatewaysFragmentTvLocation">Auto fill location</string>
+    <string name="addGatewaysFragmentTvSave">Save</string>
+    <string name="addGatewaysFragmentTvCancel">Cancel</string>
+
+    <!-- Details Gateways Fragment-->
+    <string name="detailsGatewaysFragmentTvSensor">SensorNodes</string>
+    <string name="detailsGatewaysFragmentTvValves">ValvesController</string>
+
+    <!-- Setting Gateways Fragment-->
+    <string name="settingsGatewaysFragmentTvId">GatewayID: %s</string>
+    <string name="settingsGatewaysFragmentDeviceTvId">DeviceID: %s</string>
+    <string name="settingsGatewaysFragmentTvTitle">Setup - %s</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Menu Drawer Fragment-->
+    <string name="menu_home">Home</string>
+    <string name="menu_gallery">Scan QR Code</string>
+    <string name="menu_slideshow">Map of gateways/devices</string>
+    <string name="menu_tools">Settings</string>
+    <string name="menu_share">Feedback</string>
+    <string name="menu_send">Information</string>
+
+    <!-- Node Device-->
+    <string name="nodeDeviceNameTest">Node Name</string>
+    <string name="nodeDeviceTsTest">Last update: 0 min ago</string>
+    <string name="nodeDeviceTs">Last update: %s ago</string>
+
+    <!-- Vales Device-->
+    <string name="valesDeviceNameTest">Vales Name</string>
+    <string name="valesDeviceON">ON</string>
+    <string name="valesDeviceOFF">OFF</string>
+
+    <!-- Real time sensor node log-->
+    <string name="realTimeSensorNodeFragmentTitle">Realtime Sensor Node</string>
+    <string name="realTimeSensorNodeFragmentTvWindSpeed">Wind speed:</string>
+    <string name="realTimeSensorNodeFragmentTvWindDefault">%s m/s</string>
+    <string name="realTimeSensorNodeFragmentTvWindDirection">Wind Direction:</string>
+    <string name="realTimeSensorNodeFragmentTvWindDirectionDefault">None</string>
+    <string name="realTimeSensorNodeFragmentTvAirPress">Air Pressure:</string>
+    <string name="realTimeSensorNodeFragmentTvAirDefault">%sBar</string>
+    <string name="realTimeSensorNodeFragmentTvWaterPress">Water Pressure:</string>
+    <string name="realTimeSensorNodeFragmentTvTemp1">Temp 1:</string>
+    <string name="realTimeSensorNodeFragmentTvTemp2">Temp 2:</string>
+    <string name="realTimeSensorNodeFragmentTvTempDefault">%s°C</string>
+    <string name="realTimeSensorNodeFragmentTvHumidity">Humidity:</string>
+    <string name="realTimeSensorNodeFragmentTvHumidityDefault">%</string>
+    <string name="realTimeSensorNodeFragmentTvSoilMoisture">Soil moisture:</string>
+    <string name="realTimeSensorNodeFragmentTvBattery">Battery:</string>
+    <string name="realTimeSensorNodeFragmentTvBatteryDefault">%sV</string>
+    <string name="realTimeSensorNodeFragmentTvLastUpdate">Last update: %s</string>
+    <string name="realTimeSensorNodeFragmentTvBtnHistory">History</string>
+    <string name="realTimeSensorNodeFragmentTvBtRefresh">Refresh</string>
+
+    <!-- Real time sensor node log-->
+    <string name="realTimeValesFragmentTvValesNameDefault">ValesName:</string>
+    <string name="realTimeValesFragmentTvValesDataHistory">%s %s</string>
+    <string name="realTimeValesFragmentTvValesDataStateOn">On:&#160;</string>
+    <string name="realTimeValesFragmentTvValesDataStateOff">Off:&#160;</string>
+
+
+    <!-- Add Devices-->
+    <string name="addDeviceActivityTvTitle">Add new Devices</string>
+    <string name="addDeviceActivityTvGatewayId">GatewayID</string>
+    <string name="addDeviceActivityTvGatewayHasOwner">This Gateway has owner. Please add other gateway!</string>
+    <string name="addDeviceActivityTvGatewayEmptyInput">Please fill the input data!</string>
+    <string name="addDeviceActivityTvGatewayDeleteGateway">Do you want to delete %s gateway and data?</string>
+    <string name="addDeviceActivityTvGatewayDeleteDevice">Do you want to delete %s device and data?</string>
+    <string name="addDeviceActivityEdtLoraIdHint">Only using 0&#8211;9,ABCDEF</string>
+
+    <!-- Map-->
+    <string name="mapActivityTitle">Map</string>
+    <string name="mapActivityErrorEmpty">Data Empty!</string>
+
+    <!-- AR-->
+    <string name="scanQRActivityTitle">Scan QR Code</string>
+    <string name="scanQRActivityTvDescription">Keep camera on the QR Code</string>
+
+    <!-- Permission Dialog-->
+    <string name="permissionDialogMsg">Please, Turn on permission to keep using application</string>
+    <string name="permissionDialogMsgSetting">Settings</string>
+    <string name="permissionDialogMsgDeny">Cancel</string>
+
+    <!-- After Scan-->
+    <string name="afterScanBtnDetail">Details</string>
+    <string name="afterScanTitle">After Scan</string>
+    <string name="afterScanErrorSerial">Serial key does not exits!</string>
+
+    <!-- Settings -->
+    <string name="settingsTitle">Settings</string>
+    <string name="settingsLangUs">English</string>
+    <string name="settingsLangVn">Tiếng Việt</string>
+    <string name="settingsLang">Language:</string>
+
+    <!-- App Info -->
+    <string name="AppInfoTitle">Information</string>
+    <string name="AppInfoVer">Version: 1.3.1</string>
+    <string name="AppCpRight">Copyright: Qtech Vietnam</string>
+    <string name="AppMail">Contact: fps.qtechvietnam@gmail.com</string>
+
+    <!-- Diff Day -->
+    <string name="diffDayYear">years</string>
+    <string name="diffDayMonth">months</string>
+    <string name="diffDayDays">days</string>
+    <string name="diffDayHours">hours</string>
+    <string name="diffDayMinutes">minutes</string>
+    <string name="diffDaySeconds">seconds</string>
+    <string name="diffDayAgo">&#160;ago</string>
+
+    <!-- Chart -->
+    <string name="chartTypeTemp1">Temp 1&#160;</string>
+    <string name="chartTypeTemp2">Temp 2&#160;</string>
+    <string name="chartTitleDialog">Select your type chart</string>
+    <string name="chartDateDialog">Select Date</string>
+    <string name="chartStart">Start: %s</string>
+    <string name="chartEnd">End: %s</string>
+    <string name="chartDateOK">OK</string>
+    <string name="chartDateCancel">Cancel</string>
+    <string name="map_choose_map_types">Map types</string>
+    <string name="choose_map_type_default">Default</string>
+    <string name="choose_map_type_satellite">Satellite</string>
+    <string name="gatewayDetailEmptyDevice">Device is empty! Please add new device!</string>
+</resources>

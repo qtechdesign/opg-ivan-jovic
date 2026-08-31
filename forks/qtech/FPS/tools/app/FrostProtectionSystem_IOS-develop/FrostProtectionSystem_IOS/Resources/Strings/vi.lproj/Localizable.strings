@@ -1,0 +1,247 @@
+/* 
+  Localizable.strings
+  FrostProtectionSystem_IOS
+
+  Created by TiepNguyen on 8/28/19.
+  Copyright © 2019 qtech. All rights reserved.
+*/
+
+"Done" = "Hoàn Thành";
+
+"Please wait..." = "Vui lòng đợi...";
+
+"Yes" = "Có";
+
+"OK" = "OK";
+
+"No" = "Không";
+
+"ON" = "BẬT";
+
+"OFF" = "TẮT";
+
+"On" = "Bật";
+
+"Off" = "Tắt";
+
+"Save" = "Lưu";
+
+"Cancel" = "Hủy";
+
+"Something wrong!" = "Đã có lỗi xảy ra!";
+
+"Details" = "Chi tiết";
+
+// Home
+
+"Home" = "Trang Chủ";
+
+"Search..." = "Tìm kiếm...";
+
+"%d devices" = "%d devices";
+
+"Map" = "Map";
+
+// Login
+
+"Password" = "Mật khẩu";
+
+"Remember me" = "Ghi nhớ";
+
+"Forgot Password?" = "Quên mật khẩu?";
+
+"Login" = "Đăng nhập";
+
+"Don't have an account?" = "Chưa có tài khoản?";
+
+"Create Now" = "Tạo Ngay";
+
+"OR" = "HOẶC";
+
+"Login with " = "Đăng nhập với ";
+
+// Register
+
+"SIGN-UP" = "ĐĂNG KÝ";
+
+"Name*" = "Tên*";
+
+"Password*" = "Mật khẩu*";
+
+"I have read the" = "Tôi đã đọc";
+
+"Term & Conditions" = "Điều Khoản & Điều Kiện";
+
+"Already have an account?" = "Đã có tài khoản?";
+
+"Login Now" = "Đăng Nhập Ngay";
+
+"Resiger success" = "Đăng ký thành công";
+
+"Email can not be empty" = "Email không được để trống";
+
+"Wrong email format" = "Không đúng định dạng email";
+
+"Password can not be empty" = "Mật khẩu không được để trống";
+
+"The length of the password must be 6 characters or more" = "Độ dài mật khẩu tối thiểu là 6 ký tự";
+
+"Name can not be empty" = "Tên không được để trống";
+
+// Forgot password
+
+"FORGOT PASSWORD" = "QUÊN MẬT KHẨU";
+
+"Enter your registered email" = "Nhập email bạn đã đăng ký";
+
+"Send Mail" = "Gửi Mail";
+
+"We sent a reset password link to your email. Do you want to check it?" = "Chúng tôi đã gửi một liên kết đặt lại mật khẩu đến email của bạn. Bạn có muốn kiểm tra?";
+
+// Drawer Navigation
+
+"Scan QR code" = "Quét mã QR";
+
+"Map of gateways/devices" = "Bản đồ gateways/devices";
+
+"Settings" = "Cài đặt";
+
+"Feedback" = "Ý kiến phản hồ";
+
+"Information" = "Thông tin";
+
+"%d Gateways" = "%d Gateways";
+
+"%d Devices" = "%d Devices";
+
+// Device
+
+"Wind Speed" = "Tốc Độ Gió";
+
+"Wind Direction" = "Hướng Gió";
+
+"Air Pressure" = "Áp Suất Không Khí";
+
+"Water Pressure" = "Áp Suất Nước";
+
+"Temp 1" = "Nhiệt Độ 1";
+
+"Temp 2" = "Nhiệt Độ 2";
+
+"Humidity" = "Độ Ẩm";
+
+"Soil Moisture" = "Độ Ẩm Đất";
+
+"Battery" = "Pin";
+
+"Status:" = "Trạng thái:";
+
+"Last update: %@" = "Cập nhật lần cuối: %@";
+
+"Refresh" = "Cập nhật";
+
+"History" = "Lịch sử";
+
+"Add device" = "Thêm device";
+
+"This device not exists." = "Device này không tồn tại.";
+
+"This device has been deleted." = "Device này đã bị xoá.";
+
+"Edit device success." = "Sửa device thành công.";
+
+"Add new device success." = "Thêm device thành công.";
+
+"Select a gateway, please." = "Vui lòng chọn một gateway.";
+
+"Lora ID must have 4 characters, only contain 0-9, A-F, a-f" = "Lora ID phải có 4 ký tự, chỉ chứa 0-9, A-F, a-f";
+
+// Wind direction
+
+"North" = "Bắc";
+
+"Northeast" = "Đông Bắc";
+
+"East" = "Đông";
+
+"Southeast" = "Đông Nam";
+
+"South" = "Nam";
+
+"Southwest" = "Tây Nam";
+
+"West" = "Tây";
+
+"Northwest" = "Tây Bắc";
+
+// Add gateway
+
+"Name:" = "Tên:";
+
+"Serial key:" = "Số sê-ri:";
+
+"Position" = "Vị trí";
+
+"Latitude:" = "Vĩ độ:";
+
+"Longitude:" = "Kinh độ:";
+
+"Auto fill location" = "Chọn vị trí trên bản đồ";
+
+"Add new gateway" = "Thêm gateway";
+
+"Add new gateway success." = "Thêm gateway thành công.";
+
+"Serial ID incorrect." = "Số sê-ri không đúng.";
+
+"Do you want to delete all data of the device?" = "Bạn có muốn xóa tất cả dữ liệu của các device?";
+
+"Serial key not be empty" = "Số sê-ri không được để trống";
+
+// Scan QR Code
+
+"Scan QR Code" = "Quét Mã QR";
+
+"Keep camera on the QR code" = "Đưa camera vào vị trí mã QR";
+
+"Not found a gateway or device" = "Không tìm thấy gateway hoặc device";
+
+"After scan" = "Tìm gateway - device từ mã QR";
+
+"QR Code incorrect" = "Mã QR không đúng định dạng";
+
+// Setting
+
+"Language:" = "Ngôn ngữ:";
+
+"Information" = "Thông tin";
+
+"Version: " = "Phiên bản: ";
+
+"Copyright:" = "Bản quyền:";
+
+"Contact:" = "Liên hệ:";
+
+// Gateway
+
+"This gateway has been deleted." = "Gateway này đã bị xoá.";
+
+"This gateway not exists." = "Gateway này không tồn tại.";
+
+"Please enter latitude and longitude coordinates." = "Vui lòng nhập đầy đủ toạ độ.";
+
+"Edit gateway success." = "Thay đổi thông tin gateway thành công.";
+
+// Map
+
+"Select" = "Chọn";
+
+"Select coodinates" = "Chọn tọa độ";
+
+// Chart
+
+"Start: %@" = "Bắt đầu: %@";
+
+"End: %@" = "Kết thúc: %@";
+
+"A few seconds ago" = "Vài giây trước";

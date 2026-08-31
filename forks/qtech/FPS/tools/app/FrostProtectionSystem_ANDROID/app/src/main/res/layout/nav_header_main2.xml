@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:background="@drawable/bg_gradient_app"
+              android:clickable="true"
+              android:focusable="true"
+              android:focusableInTouchMode="true"
+              android:orientation="vertical"
+              android:paddingLeft="@dimen/activity_horizontal_margin"
+              android:paddingTop="@dimen/activity_vertical_margin"
+              android:paddingRight="@dimen/activity_horizontal_margin"
+              android:paddingBottom="@dimen/activity_vertical_margin"
+
+              android:theme="@style/ThemeOverlay.AppCompat.Dark">
+
+    <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+        <LinearLayout
+                android:layout_toStartOf="@+id/imgLogout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginTop="15dp"
+                android:orientation="vertical">
+
+            <TextView
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:id="@+id/tvHeaderUser"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/font_app"
+                    android:paddingTop="@dimen/nav_header_vertical_spacing"
+                    android:text="@string/nav_header_title"
+                    android:textColor="@color/colorWhite"
+                    android:textSize="17dp"
+                    android:textStyle="bold"/>
+
+            <TextView
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:id="@+id/tvEmailHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/font_app"
+                    android:text="@string/nav_header_subtitle"
+                    android:textColor="@color/colorWhiteAlpha"
+                    android:textSize="15dp"/>
+
+        </LinearLayout>
+
+        <ImageView
+                android:id="@+id/imgLogout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@drawable/ic_logout"/>
+
+    </RelativeLayout>
+
+    <LinearLayout
+            android:id="@+id/llGatewaysInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp"
+            android:gravity="bottom"
+            android:orientation="horizontal">
+
+        <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity=""
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+            <ImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_gateways"/>
+
+            <TextView
+                    android:id="@+id/tvNumGateways"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/font_app"
+                    android:text="@string/gatewaysFragmentTvGateWaysHint"
+                    android:textColor="@color/colorWhite"
+                    android:textSize="13dp"/>
+
+        </LinearLayout>
+
+        <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="@color/colorWhiteAlpha"/>
+
+        <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+            <ImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_devices"/>
+
+            <TextView
+                    android:id="@+id/tvNumDevices"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/font_app"
+                    android:text="@string/gatewaysFragmentTvDevicesHint"
+                    android:textColor="@color/colorWhite"
+                    android:textSize="13dp"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

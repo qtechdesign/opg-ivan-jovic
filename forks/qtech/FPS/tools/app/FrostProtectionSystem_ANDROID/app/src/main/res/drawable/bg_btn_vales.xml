@@ -1,0 +1,5 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:drawable="@drawable/ic_vales_off" android:state_enabled="false"/>
+    <item android:drawable="@drawable/ic_vales_onn"/>
+</selector>

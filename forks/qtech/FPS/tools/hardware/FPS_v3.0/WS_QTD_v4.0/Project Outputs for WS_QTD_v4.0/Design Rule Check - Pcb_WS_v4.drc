@@ -1,0 +1,97 @@
+Protel Design System Design Rule Check
+PCB File : D:\Google Drive\AltiumSYNC\projects\QTD\Proj_weather_station_v4.0\WS_QTD_v4.0\Pcb_WS_v4.PcbDoc
+Date     : 19-Feb-21
+Time     : 10:53:43 PM
+
+Processing Rule : Clearance Constraint (Gap=7.874mil) (InNet('ANT_M1')),(InNet('GND_ANT'))
+Rule Violations :0
+
+Processing Rule : Clearance Constraint (Gap=5mil) (OnLayer('Keep-Out Layer')),(All)
+Rule Violations :0
+
+Processing Rule : Clearance Constraint (Gap=10mil) (All),(All)
+Rule Violations :0
+
+Processing Rule : Short-Circuit Constraint (Allowed=No) (All),(All)
+Rule Violations :0
+
+Processing Rule : Un-Routed Net Constraint ( (All) )
+Rule Violations :0
+
+Processing Rule : Modified Polygon (Allow modified: No), (Allow shelved: No)
+Rule Violations :0
+
+Processing Rule : Width Constraint (Min=8mil) (Max=196.85mil) (Preferred=10mil) (All)
+Rule Violations :0
+
+Processing Rule : Power Plane Connect Rule(Relief Connect )(Expansion=20mil) (Conductor Width=10mil) (Air Gap=10mil) (Entries=4) (All)
+Rule Violations :0
+
+Processing Rule : Hole Size Constraint (Min=11.811mil) (Max=100mil) (All)
+Rule Violations :0
+
+Processing Rule : Hole To Hole Clearance (Gap=20mil) (All),(All)
+Rule Violations :0
+
+Processing Rule : Minimum Solder Mask Sliver (Gap=3mil) (HasFootprint('32A_ATM-M')),(HasFootprint('32A_ATM-M'))
+Rule Violations :0
+
+Processing Rule : Minimum Solder Mask Sliver (Gap=5mil) (All),(All)
+Rule Violations :0
+
+Processing Rule : Silk To Solder Mask (Clearance=5mil) (IsPad),(All)
+Rule Violations :0
+
+Processing Rule : Silk to Silk (Clearance=3mil) (All),(All)
+Rule Violations :0
+
+Processing Rule : Net Antennae (Tolerance=0mil) (Disabled)(All)
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 150mil, Vertical Gap = 0mil ) (InComponentClass('conn-th')),(IsComponent and not InComponentClass('conn-th')) 
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 150mil, Vertical Gap = 0mil ) (InComponentClass('IC_Comp')),(IsComponent) 
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 165mil, Vertical Gap = 0mil ) (InComponentClass('HS_Comp')),(IsComponent) 
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 5mil, Vertical Gap = 0mil ) (InComponentClass('KF_conn')),(InComponentClass('KF_conn')) 
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 25mil, Vertical Gap = 0mil ) (InComponentClass('chip-0603')),(IsComponent) 
+Rule Violations :0
+
+Processing Rule : Component Clearance Constraint ( Horizontal Gap = 75mil, Vertical Gap = 0mil ) (InComponentClass('chip-ge')),(InAnyComponent) 
+Rule Violations :0
+
+Processing Rule : Height Constraint (Min=0mil) (Max=1000mil) (Prefered=500mil) (All)
+Rule Violations :0
+
+Waived Violations Of Rule : Clearance Constraint (Gap=10mil) (All),(All)
+   Waived Violation between Clearance Constraint: (Collision < 10mil) Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Pad TIE1-2(34.999mil,2272.5mil) on Bottom Layer Waived by HIEN at 27-Jan-21 9:59:14 PMwaived
+   Waived Violation between Clearance Constraint: (Collision < 10mil) Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Region (0 hole(s)) Bottom Layer Waived by HIEN at 27-Jan-21 9:59:14 PMwaived
+   Waived Violation between Clearance Constraint: (Collision < 10mil) Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Via (25mil,2272.5mil) from Top Layer to Bottom Layer Waived by HIEN at 27-Jan-21 9:59:14 PMwaived
+   Waived Violation between Clearance Constraint: (9.842mil < 10mil) Between Pad TIE1-1(64.527mil,2272.5mil) on Bottom Layer And Pad TIE1-2(34.999mil,2272.5mil) on Bottom Layer Waived by HIEN at 27-Jan-21 9:59:14 PMwaived
+Waived Violations :4
+
+Waived Violations Of Rule : Short-Circuit Constraint (Allowed=No) (All),(All)
+   Waived Violation between Short-Circuit Constraint: Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Pad TIE1-2(34.999mil,2272.5mil) on Bottom Layer Location : [X = 1444.141mil][Y = 3506.961mil]Waived by  at 19-Feb-21 9:57:37 PM
+   Waived Violation between Short-Circuit Constraint: Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Region (0 hole(s)) Bottom Layer Location : [X = 1439.22mil][Y = 3506.961mil]Waived by  at 19-Feb-21 9:57:39 PM
+   Waived Violation between Short-Circuit Constraint: Between Area Fill (25.157mil,2262.657mil) (74.369mil,2282.342mil) on Bottom Layer And Via (25mil,2272.5mil) from Top Layer to Bottom Layer Location : [X = 1439.263mil][Y = 3506.961mil]Waived by  at 19-Feb-21 9:57:33 PM
+Waived Violations :3
+
+Waived Violations Of Rule : Hole Size Constraint (Min=11.811mil) (Max=100mil) (All)
+   Waived Violation between Hole Size Constraint: (133.858mil > 100mil) Pad HOLE1-1(3716.016mil,3693.138mil) on Multi-Layer Actual Hole Size = 133.858milWaived by Hien at 17-Jan-21 11:11:54 PMCan waive this DRC
+   Waived Violation between Hole Size Constraint: (133.858mil > 100mil) Pad HOLE2-1(172.708mil,3693.138mil) on Multi-Layer Actual Hole Size = 133.858milWaived by Hien at 17-Jan-21 11:11:48 PMCan waive this DRC
+   Waived Violation between Hole Size Constraint: (177.165mil > 100mil) Pad J3-1(3322.315mil,3504.161mil) on Multi-Layer Actual Hole Size = 177.165milWaived by Hien at 17-Jan-21 11:11:31 PMCan waive this DRC
+   Waived Violation between Hole Size Constraint: (177.165mil > 100mil) Pad J3-2(3322.315mil,3220.697mil) on Multi-Layer Actual Hole Size = 177.165milWaived by Hien at 17-Jan-21 11:11:21 PMCan waive this DRC
+   Waived Violation between Hole Size Constraint: (177.165mil > 100mil) Pad J4-1(566.409mil,3504.161mil) on Multi-Layer Actual Hole Size = 177.165milWaived by Hien at 17-Jan-21 11:11:42 PMCan waive this DRC
+   Waived Violation between Hole Size Constraint: (177.165mil > 100mil) Pad J4-2(566.409mil,3220.697mil) on Multi-Layer Actual Hole Size = 177.165milWaived by Hien at 17-Jan-21 11:11:36 PMCan waive this DRC
+Waived Violations :6
+
+
+Violations Detected : 0
+Waived Violations : 13
+Time Elapsed        : 00:00:03

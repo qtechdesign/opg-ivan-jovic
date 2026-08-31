@@ -1,0 +1,12 @@
+//
+//  release.xcconfig
+//  FrostProtectionSystem_IOS
+//
+//  Created by TiepNguyen on 9/14/19.
+//  Copyright © 2019 qtech. All rights reserved.
+//
+
+// Configuration settings file format documentation can be found at:
+// https://help.apple.com/xcode/#/dev745c5c974
+
+GoogleMapApiKey = AIzaSyB_qk4Y5ZeW4LrAANCeojrjsiCO7uGboug

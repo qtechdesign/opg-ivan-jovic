@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>145278649281-tno06irp6olht7eft6t8j0d2crkv5rka.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.145278649281-tno06irp6olht7eft6t8j0d2crkv5rka</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>145278649281-lck93qch9nder5nsd66fpjf37k1svjc1.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyB_qk4Y5ZeW4LrAANCeojrjsiCO7uGboug</string>
+	<key>GCM_SENDER_ID</key>
+	<string>145278649281</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.qtech.FrostProtectionSystem</string>
+	<key>PROJECT_ID</key>
+	<string>qtech-frost-protection-system</string>
+	<key>STORAGE_BUCKET</key>
+	<string>qtech-frost-protection-system.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:145278649281:ios:77eb818644876bc2</string>
+	<key>DATABASE_URL</key>
+	<string>https://qtech-frost-protection-system.firebaseio.com</string>
+</dict>
+</plist>

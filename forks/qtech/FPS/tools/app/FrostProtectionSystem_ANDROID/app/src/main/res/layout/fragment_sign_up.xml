@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/llRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_gradient_app"
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <TextView
+            android:id="@+id/tvTitleForgot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="35dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/signUpFragmentTvTitle"
+            android:textColor="@color/colorWhite"
+            android:textSize="25dp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@id/tvTitleName"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!--Name-->
+        <TextView
+            android:id="@+id/tvTitleName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="63dp"
+            android:layout_marginTop="30dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/signUpFragmentTvName"
+            android:textColor="@color/colorWhite"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@id/edtName"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvTitleForgot" />
+
+        <EditText
+            android:id="@+id/edtName"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="38dp"
+            android:background="@drawable/bg_edt_login"
+            android:fontFamily="@font/font_app"
+            android:gravity="center_vertical"
+            android:hint="@string/signUpFragmentTvNameHint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingStart="25dp"
+            android:paddingEnd="25dp"
+            android:textColor="@color/colorWhite"
+            android:textColorHint="@color/colorWhiteAlpha"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@+id/tvTitleMail"
+            app:layout_constraintTop_toBottomOf="@id/tvTitleName" />
+
+        <!--Email-->
+        <TextView
+            android:id="@+id/tvTitleMail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="63dp"
+            android:layout_marginTop="25dp"
+            android:fontFamily="@font/font_app"
+            android:text="@string/signUpFragmentTvMail"
+            android:textColor="@color/colorWhite"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@+id/edtUserMail"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/edtName" />
+
+        <EditText
+            android:id="@+id/edtUserMail"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="38dp"
+            android:background="@drawable/bg_edt_login"
+            android:fontFamily="@font/font_app"
+            android:gravity="center_vertical"
+            android:hint="@string/loginFragmentTvEmailHint"
+            android:inputType="text"
+            android:maxLines="1"
+            android:paddingStart="25dp"
+            android:paddingEnd="25dp"
+            android:textColor="@color/colorWhite"
+            android:textColorHint="@color/colorWhiteAlpha"
+            android:textSize="15dp"
+            app:layout_constraintBottom_toTopOf="@id/tvTitlePass"
+            app:layout_constraintTop_toBottomOf="@+id/tvTitleMail" />
+
+        <!--Password-->
+        <TextView
+                android:id="@+id/tvTitlePass"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="63dp"
+                android:layout_marginTop="25dp"
+                android:fontFamily="@font/font_app"
+                android:text="@string/signUpFragmentTvPass"
+                android:textColor="@color/colorWhite"
+                android:textSize="15dp"
+                app:layout_constraintBottom_toTopOf="@id/rlEdtPassSignUp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/edtUserMail"/>
+
+
+        <RelativeLayout
+                android:id="@+id/rlEdtPassSignUp"
+                android:layout_marginTop="10dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:paddingStart="38dp"
+                android:paddingEnd="38dp"
+                app:layout_constraintBottom_toTopOf="@id/llTerm"
+                app:layout_constraintTop_toBottomOf="@id/tvTitlePass">
+
+            <EditText
+                    android:drawableEnd="@drawable/bg_show_pass"
+                    android:id="@+id/edtPass"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:background="@drawable/bg_edt_login"
+                    android:fontFamily="@font/font_app"
+                    android:gravity="center_vertical"
+                    android:hint="@string/loginFragmentTvPassHint"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:paddingStart="25dp"
+                    android:paddingEnd="25dp"
+                    android:textColor="@color/colorWhite"
+                    android:textColorHint="@color/colorWhiteAlpha"
+                    android:textSize="15dp"
+                    />
+
+            <LinearLayout
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:id="@+id/llTouchShowPassSignUp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="10dp"
+                    android:layout_width="50dp"
+                    android:layout_height="30dp"
+                    android:orientation="horizontal"/>
+
+        </RelativeLayout>
+        <!--Term of service-->
+
+        <LinearLayout
+                android:id="@+id/llTerm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="41dp"
+                android:layout_marginTop="15dp"
+                android:layout_marginEnd="41dp"
+                android:orientation="horizontal"
+                app:layout_constraintBottom_toTopOf="@id/tvCreateNow"
+                app:layout_constraintTop_toBottomOf="@id/rlEdtPassSignUp">
+
+            <com.app.frostprotectionsystemandroid.ui.widget.checkbox.SmoothCheckBox
+                android:id="@+id/checkbox"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                app:color_checked="@color/colorWhite"
+                app:color_tick="@color/colorEnd"
+                app:color_unchecked="@color/colorWhiteAlpha"
+                app:color_unchecked_stroke="@color/colorWhiteAlpha" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:fontFamily="@font/font_app"
+                android:text="@string/signUpFragmentTvIHaveRead"
+                android:textColor="@color/colorWhiteAlpha"
+                android:textSize="13dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/font_app"
+                android:text="@string/signUpFragmentTvTerm"
+                android:textColor="@color/colorWhite"
+                android:textSize="13dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+
+        <!-- Create Now -->
+
+        <TextView
+            android:id="@+id/tvCreateNow"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="15dp"
+            android:layout_marginEnd="38dp"
+            android:alpha="0.5"
+            android:background="@drawable/bg_btn_login"
+            android:enabled="false"
+            android:gravity="center"
+            android:text="@string/signUpFragmentTvCreateNow"
+            android:textColor="@color/colorEnd"
+            android:textSize="17dp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@id/llHaveAcc"
+            app:layout_constraintTop_toBottomOf="@id/llTerm" />
+
+        <!-- Already login acc -->
+
+        <LinearLayout
+            android:id="@+id/llHaveAcc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="13dp"
+            android:gravity="center_horizontal"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toTopOf="@id/tvOrSignUp"
+            app:layout_constraintTop_toBottomOf="@id/tvCreateNow">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/signUpFragmentTvHaveAcc"
+                android:textColor="@color/colorWhiteAlpha"
+                android:textSize="13dp" />
+
+            <TextView
+                android:id="@+id/tvLoginNow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/signUpFragmentTvLoginNow"
+                android:textColor="@color/colorWhite"
+                android:textSize="13dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!--OR -->
+
+        <TextView
+            android:id="@+id/tvOrSignUp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="13dp"
+            android:text="@string/loginFragmentTvOr"
+            android:textColor="@color/colorWhite"
+            android:textSize="17dp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@id/loginWithGG"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/llHaveAcc" />
+
+        <!-- Login Google-->
+
+        <LinearLayout
+            android:id="@+id/loginWithGG"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginStart="38dp"
+            android:layout_marginTop="13dp"
+            android:layout_marginEnd="38dp"
+            android:layout_marginBottom="40dp"
+            android:alpha="0.5"
+            android:background="@drawable/bg_btn_login"
+            android:enabled="false"
+            android:gravity="center_horizontal"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tvOrSignUp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:text="@string/loginFragmentTvLoginWith"
+                android:textColor="@color/colorEnd"
+                android:textSize="17dp" />
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="17dp"
+                android:src="@drawable/ic_login_gg" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

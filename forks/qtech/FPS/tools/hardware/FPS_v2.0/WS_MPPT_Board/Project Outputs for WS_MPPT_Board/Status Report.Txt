@@ -1,0 +1,12 @@
+Output: NC Drill Files
+Type  : NC Drill
+From  : Project [WS_MPPT_Board.PrjPcb]
+   Generated File[Pcb_mppt_board.TXT]
+   Generated File[Pcb_mppt_board.LDP]
+   Generated File[Pcb_mppt_board.DRR]
+
+
+Files Generated   : 3
+Documents Printed : 0
+
+Finished Output Generation At 9:09:30 PM On 15-Sep-19
