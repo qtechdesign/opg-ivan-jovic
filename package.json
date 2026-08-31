@@ -1,0 +1,36 @@
+{
+  "name": "polje",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Polje — farm OS for OPG Ivan Jović (and forks)",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply polje --local",
+    "db:migrate:remote": "wrangler d1 migrations apply polje --remote",
+    "seed:local": "node scripts/seed.mjs",
+    "seed:remote": "node scripts/seed.mjs --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.71",
+    "@cloudflare/workers-types": "^4.20250906.0",
+    "typescript": "^5.9.2",
+    "vitest": "~3.0.9",
+    "wrangler": "4.35.0"
+  },
+  "dependencies": {
+    "hono": "^4.9.0",
+    "zod": "^3.25.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

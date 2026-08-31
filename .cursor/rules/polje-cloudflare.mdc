@@ -1,0 +1,15 @@
+---
+description: Cloudflare Worker / Wrangler / D1 conventions for Polje
+globs: wrangler.jsonc,apps/api/**,migrations/**
+alwaysApply: false
+---
+
+# Polje Cloudflare
+
+- Hono + TypeScript on Workers. Config in `wrangler.jsonc` at repo root.
+- Generate bindings with `wrangler types` — never hand-write `Env`.
+- D1 is the relational ledger. Do not add KV / R2 / DO / Queues / Cron until that module.
+- Secrets via `wrangler secret put` and `.dev.vars` (gitignored). Never hardcode tokens.
+- Public hostnames: `opg-ivanjovic.hr` + `www.opg-ivanjovic.hr` as Worker custom domains.
+- Prefer bindings over Cloudflare REST from inside the Worker.
+- Enable `nodejs_compat` and `observability`. Keep `compatibility_date` current.

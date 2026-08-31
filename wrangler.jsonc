@@ -1,0 +1,32 @@
+/**
+ * Polje Worker — M0 skeleton
+ *
+ * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
+ * Bindings: D1 only (KV / R2 / DO / Queues arrive in later modules)
+ */
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "polje",
+  "main": "apps/api/src/index.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "SERVICE_NAME": "polje"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "polje",
+      "database_id": "5413c190-29d4-406d-aa61-2dd44a489aca",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "routes": [
+    { "pattern": "opg-ivanjovic.hr", "custom_domain": true },
+    { "pattern": "www.opg-ivanjovic.hr", "custom_domain": true }
+  ]
+}

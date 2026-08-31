@@ -1,0 +1,18 @@
+---
+description: Core Polje farm OS rules — always apply
+alwaysApply: true
+---
+
+# Polje core
+
+Read `OPG-IVAN-JOVIC.md` before coding. Platform name is **Polje**. First tenant: OPG Ivan Jović (`farm_id` / slug `ivan-jovic`).
+
+- Implement **one module** (M0–M10) per task. Do not invent extra scope.
+- Local failsafe first: cloud is brain + ledger, edge is muscle.
+- Confirm dangerous writes (`confirm: true` + reason + audit).
+- Every write path adds an audit event.
+- Currency EUR (integer cents). Dates ISO-8601 UTC. Optional HR UI labels.
+- Public code; never commit secrets, camera URLs, bank data, exact private GPS.
+- Schema always includes `farm_id` so other OPGs can fork.
+- Prefer OTS local-API devices (Shelly/Tasmota/MQTT/Modbus) over custom FPS when cash is tight.
+- Module order: M0 skeleton → M1 land → M2 edge/ingest → M3 cameras → M4 FPS → … Do not skip to robots.

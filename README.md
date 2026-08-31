@@ -1,0 +1,74 @@
+# Polje — OPG Ivan Jović
+
+House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour. The farm sat unused for ~30 years. This software is the next chapter of that same ground: an operating system for a Croatian family holding (**OPG**).
+
+**Polje** (`polje` = field) is the platform name. First tenant: **OPG Ivan Jović**. Built so another family farm can fork the same roadmap.
+
+## Live
+
+- https://opg-ivanjovic.hr
+- https://www.opg-ivanjovic.hr
+- Debug: https://polje.quiet-lab-19ab.workers.dev
+- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`
+
+If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1.1 opg-ivanjovic.hr`) — custom domains are attached and serving.
+
+## Stack (M0)
+
+| Piece | Role |
+|---|---|
+| Cloudflare Worker (Hono) | HTTP API + tiny HTML console |
+| D1 | Relational ledger (farms, plots, devices, …) |
+| Mosquitto (compose stub) | Local MQTT — edge app arrives in M2 |
+
+Later: Durable Objects, R2, Queues, Polje Edge, FPS LoRa fork, MCP, Grok. Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
+
+## Secrets
+
+| Where | What |
+|---|---|
+| `.dev.vars` (gitignored) | Local Wrangler secrets — copy from `.dev.vars.example` |
+| Cloudflare Secrets | Production — `npx wrangler secret put INGEST_TOKEN` (later: `XAI_API_KEY`, …) |
+| GitHub Actions secrets | CI only — `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+
+Never commit `.env`, `.dev.vars`, or real tokens. Non-secret config stays in `wrangler.jsonc` `vars`.
+
+## Quickstart
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run seed:local
+npm run dev
+```
+
+Then:
+
+- http://127.0.0.1:8787/
+- http://127.0.0.1:8787/v1/health
+- http://127.0.0.1:8787/v1/farms/ivan-jovic
+
+Local MQTT (optional):
+
+```bash
+cd deploy/edge && docker compose up -d
+```
+
+## FPS fork (M4 — not yet)
+
+When ready:
+
+```bash
+git subtree add --prefix=forks/qtech https://github.com/qtechdesign/qtech.git master --squash
+```
+
+Credit: Frost Protection System inherited from [qtechdesign/qtech](https://github.com/qtechdesign/qtech) (MIT).
+
+## Agents
+
+See [`AGENTS.md`](AGENTS.md) and `.cursor/rules/`. Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

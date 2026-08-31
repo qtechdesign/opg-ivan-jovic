@@ -1,0 +1,14 @@
+---
+description: Polje UI — SpaceX chassis, farm weather payload (bible §24)
+globs: apps/web/**,apps/api/**/*.html,packages/ui/**
+alwaysApply: false
+---
+
+# Polje UI
+
+- Type: D-DIN / D-DIN Bold; fallback IBM Plex Sans. Never Inter as brand face.
+- Chrome: near-black `--void`, spectral text, hairline borders, ghost buttons, **4px** radius. No shadows, no fat cards, no purple SaaS.
+- Accents (one per widget): leaf, hay, ice, soil, alarm.
+- Weather theme via `data-solar` + `data-wx` on `<html>` — farm sensors win over OS theme.
+- Operator UI: Croatian first, English toggle. Never all-caps Croatian paragraphs.
+- If a screen looks like generic analytics SaaS, throw it away. Full rules: `OPG-IVAN-JOVIC.md` §24.

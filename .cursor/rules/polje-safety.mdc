@@ -1,0 +1,14 @@
+---
+description: Actuator / command / edge safety for Polje
+globs: "**/commands*",**/drivers/**,apps/edge/**
+alwaysApply: false
+---
+
+# Polje safety
+
+- Every actuator needs a local timeout and safe default (usually OFF / last-safe).
+- Cloud must never be the only safety layer. Edge is write-leader for valves.
+- High-risk tools (`run_irrigation`, `set_actuator`, `fps_open_valve`, climate setpoints) require `confirm: true` + `reason`. Without confirm → return proposal only.
+- Irrigation duration caps; rain lockout for drip (never lock out an armed frost program).
+- Log who / what / why / before / after in `audit` — humans and agents.
+- Do not enable high-risk automations in seed data.
