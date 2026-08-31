@@ -22,9 +22,9 @@ If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1
 | D1 | Relational ledger (farms, plots, plantings, audit, …) |
 | R2 `polje-media` | Growth diary photos |
 | Queue `polje-ingest` + FarmRuntime DO | Live telemetry + WS |
-| Polje Edge + Mosquitto | Farm LAN ingest / outbox (`deploy/edge`) |
+| Polje Edge + Mosquitto + go2rtc | Farm LAN ingest / camera stills (`deploy/edge`) |
 
-Later: Frigate cameras, FPS LoRa fork, MCP, Grok. Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
+Later: Frigate detectors, FPS LoRa fork, MCP, Grok. Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
 
 ## Secrets
 
