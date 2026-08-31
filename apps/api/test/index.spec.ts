@@ -492,10 +492,13 @@ describe("polje M1", () => {
     expect(audit.audit.some((a) => a.action === "planting.patch")).toBe(true);
   });
 
-  it("GET /land without session → login redirect", async () => {
+  it("GET /land without session is public HTML", async () => {
     const res = await app.request("/land", {}, env);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("Location") || "").toContain("/login");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Zemlja");
+    expect(html).toContain("Pregled");
+    expect(html).toContain("Knjiga");
   });
 
   it("GET /login returns HTML", async () => {
@@ -728,9 +731,11 @@ describe("polje M7 money ledger", () => {
     await migrateAndSeed();
   });
 
-  it("GET /v1/ledger without token → 401", async () => {
+  it("GET /v1/ledger without token is public", async () => {
     const res = await app.request("/v1/ledger?farm=ivan-jovic", {}, env);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { entries: unknown[] };
+    expect(Array.isArray(body.entries)).toBe(true);
   });
 
   it("POST /v1/ledger without token → 401", async () => {
@@ -926,10 +931,12 @@ describe("polje M7 money ledger", () => {
     );
   });
 
-  it("GET /ledger without session → login redirect", async () => {
+  it("GET /ledger without session is public HTML", async () => {
     const res = await app.request("/ledger", {}, env);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("Location") || "").toContain("/login");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Knjiga");
+    expect(html).toContain("Pregled");
   });
 });
 

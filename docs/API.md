@@ -31,7 +31,14 @@ Auth for writes: Cloudflare secrets. Browser: `/login` (email + password) → Ht
 | GET | `/klima` | climate + energy (M6) |
 | GET | `/hands` | automations + jobs (M9) |
 | GET | `/frost` | FPS frost console (M4) |
-| GET | `/ledger` | money ledger HTML (M7; amounts behind operator token) |
+| GET | `/mail` | farm mailbox HTML |
+| GET | `/ledger` | money ledger HTML (M7; amounts public, writes need admin) |
+| GET | `/v1/ledger` | list entries (`farm`, `from`, `to`, `kind`, `category`, `limit`) |
+| GET | `/v1/ledger/summary` | P&amp;L + monthly buckets |
+| GET | `/v1/ledger/:id` | single row + `receipt_url` if present |
+| GET | `/v1/mail` | message list (snippet) |
+| GET | `/v1/mail/summary` | 14-day volume |
+| GET | `/v1/mail/:id` | full message (attachments download still operator) |
 | GET | `/v1/cameras?farm=ivan-jovic` | camera devices + last snapshot meta |
 | GET | `/v1/cameras/:id/latest` | JPEG from R2 (404 if none) |
 | GET | `/v1/fps/nodes?farm=` | LoRa sensors + valves + last metrics |
@@ -148,18 +155,18 @@ Dashboard: `/hands` (Ruke).
 
 ## Money (M7)
 
-Operator Bearer required for **all** ledger routes. Integer **cents EUR**; `kind` is the sign. Months are UTC (`substr(ts, 1, 7)`). Operational book — not a tax filing.
+Integer **cents EUR**; `kind` is the sign. Months are UTC (`substr(ts, 1, 7)`). Operational book — not a tax filing. **GET list/summary is public.** Writes, receipt upload, and receipt bytes need operator.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/v1/ledger` | `farm`, `from`, `to`, `kind`, `category`, `limit` (max 200). Newest first. |
-| GET | `/v1/ledger/summary` | P&amp;L + monthly buckets for `from`/`to` (default current UTC year). `operating_net` = income − expense; `cash_net` = income + subsidy − expense − asset. Includes `yield_kg` sum from plantings. |
-| GET | `/v1/ledger/:id` | Single row + `receipt_url` if present. |
-| POST | `/v1/ledger` | `{ farm_slug, kind, category?, amount_cents? \| amount_eur?, ts?, note? }` — audit `ledger.create` |
-| PATCH | `/v1/ledger/:id` | kind / category / amount / ts / note — audit `ledger.patch` |
-| DELETE | `/v1/ledger/:id` | Hard delete + R2 receipt — audit `ledger.delete` |
-| POST | `/v1/ledger/:id/receipt` | multipart `file` (JPEG/PNG/WebP/PDF ≤5 MB) → R2 `{slug}/ledger/{id}.{ext}` |
-| GET | `/v1/ledger/:id/receipt` | Bytes; `Cache-Control: private` |
+| GET | `/v1/ledger` | public. `farm`, `from`, `to`, `kind`, `category`, `limit` (max 200). Newest first. |
+| GET | `/v1/ledger/summary` | public. P&amp;L + monthly buckets for `from`/`to` (default current UTC year). `operating_net` = income − expense; `cash_net` = income + subsidy − expense − asset. Includes `yield_kg` sum from plantings. |
+| GET | `/v1/ledger/:id` | public. Single row + `receipt_url` if present. |
+| POST | `/v1/ledger` | operator. `{ farm_slug, kind, category?, amount_cents? \| amount_eur?, ts?, note? }` — audit `ledger.create` |
+| PATCH | `/v1/ledger/:id` | operator. kind / category / amount / ts / note — audit `ledger.patch` |
+| DELETE | `/v1/ledger/:id` | operator. Hard delete + R2 receipt — audit `ledger.delete` |
+| POST | `/v1/ledger/:id/receipt` | operator. multipart `file` (JPEG/PNG/WebP/PDF ≤5 MB) → R2 `{slug}/ledger/{id}.{ext}` |
+| GET | `/v1/ledger/:id/receipt` | operator. Bytes; `Cache-Control: private` |
 
 `kind`: `expense` \| `income` \| `subsidy` \| `asset`.  
 `category`: `feed` \| `seed` \| `energy` \| `repair` \| `sale` \| `eu_measure` \| `other`.

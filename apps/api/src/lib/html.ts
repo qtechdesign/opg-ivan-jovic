@@ -205,6 +205,7 @@ textarea { min-height: 80px; resize: vertical; }
 .msg { margin-top: 10px; font-size: 13px; color: var(--leaf); }
 .msg.err { color: var(--alarm); }
 body:not(.is-admin) .admin-only { display: none !important; }
+body.is-admin header nav a[href="/login"] { display: none; }
 .risk-high { color: var(--alarm); }
 .risk-medium { color: var(--hay); }
 .risk-low { color: var(--leaf); }

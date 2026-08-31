@@ -99,8 +99,13 @@ export function createFrostProgram(opts) {
       closeValves("timeout");
       const s = load();
       if (s.status === "spraying") {
+        const event_id = s.event_id;
         save({ status: "armed" });
-        reportEvent?.({ type: "frost.spray_end", reason: "timeout" });
+        reportEvent?.({
+          type: "frost.spray_end",
+          event_id,
+          reason: "timeout",
+        });
       }
     }, maxSec * 1000);
   }
@@ -151,8 +156,13 @@ export function createFrostProgram(opts) {
       });
     } else if (cur.status === "spraying" && reading.temp_c >= thr) {
       closeValves("temp_above_threshold");
+      const event_id = cur.event_id;
       save({ status: "armed" });
-      reportEvent?.({ type: "frost.spray_end", reason: "temp_above_threshold" });
+      reportEvent?.({
+        type: "frost.spray_end",
+        event_id,
+        reason: "temp_above_threshold",
+      });
     }
   }
 
@@ -172,7 +182,15 @@ export function createFrostProgram(opts) {
   }
 
   function disarm() {
+    const cur = load();
     closeValves("disarm");
+    if (cur.status === "spraying" && cur.event_id) {
+      reportEvent?.({
+        type: "frost.spray_end",
+        event_id: cur.event_id,
+        reason: "disarm",
+      });
+    }
     return save({ status: "idle", event_id: null });
   }
 
