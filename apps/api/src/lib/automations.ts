@@ -192,6 +192,34 @@ export function triggerMatches(
   return { matched: false, detail: { type: "unknown" } };
 }
 
+/**
+ * Metric `for_sec`: condition must stay true for that many seconds.
+ * Mutates `dwell` (automationId → epoch ms of first consecutive match).
+ * Manual fire skips the wait. Missing dwell store never fires for_sec (fail-safe).
+ */
+export function dwellSatisfied(
+  trigger: AutomationTrigger,
+  matched: boolean,
+  automationId: string,
+  nowMs: number,
+  dwell: Record<string, number> | undefined,
+  forceManual?: boolean
+): boolean {
+  if (!matched) {
+    if (dwell) delete dwell[automationId];
+    return false;
+  }
+  if (forceManual) return true;
+  if (trigger.type !== "metric" || trigger.for_sec == null) return true;
+  if (!dwell) return false;
+  const since = dwell[automationId];
+  if (since == null) {
+    dwell[automationId] = nowMs;
+    return false;
+  }
+  return nowMs - since >= trigger.for_sec * 1000;
+}
+
 function isLowRiskCommandAction(action: string): boolean {
   return (LOW_RISK_COMMAND_ACTIONS as readonly string[]).includes(action);
 }
@@ -361,7 +389,12 @@ export async function dispatchAction(
 export async function evaluateAutomations(
   db: D1Database,
   state: AutomationEvalState,
-  opts?: { forceId?: string; forceManual?: boolean }
+  opts?: {
+    forceId?: string;
+    forceManual?: boolean;
+    /** Mutable map: automation id → first consecutive metric match (epoch ms). */
+    dwell?: Record<string, number>;
+  }
 ): Promise<{ fired: string[]; errors: string[] }> {
   const fired: string[] = [];
   const errors: string[] = [];
@@ -418,7 +451,15 @@ export async function evaluateAutomations(
     const match = triggerMatches(trigger, state, now, {
       forceManual: opts?.forceManual && opts?.forceId === row.id,
     });
-    if (!match.matched) continue;
+    const ready = dwellSatisfied(
+      trigger,
+      match.matched,
+      row.id,
+      now.getTime(),
+      opts?.dwell,
+      !!(opts?.forceManual && opts?.forceId === row.id)
+    );
+    if (!ready) continue;
 
     if (row.last_fired_at && row.cooldown_sec > 0 && !opts?.forceManual) {
       const last = Date.parse(row.last_fired_at);

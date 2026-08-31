@@ -33,6 +33,7 @@ M0 skeleton → M1 land ledger → M2 edge + ingest → M3 cameras → M4 FPS Lo
 - Prefer small PRs / one module per change.
 - Always add an audit event when adding a new write path.
 - Prefer: *Follow OPG-IVAN-JOVIC.md. Implement only module Mx. Keep types in packages/schema.*
+- Forks keep `farm_id` on every row. Do not commit this instance’s Wrangler D1/R2/domain ids as if they were yours. See [`docs/FORK.md`](docs/FORK.md).
 
 ## Public hostnames
 

@@ -124,6 +124,37 @@ export async function isOperator(c: Context<AppEnv>): Promise<boolean> {
   return operatorCookieValid(op, c.req.header("Cookie"));
 }
 
+/** Safe in-app path for login ?next= (no open redirects). */
+export function safeNextPath(raw: string | undefined | null): string {
+  const next = (raw || "").trim();
+  if (!next.startsWith("/") || next.startsWith("//") || next.includes("://")) {
+    return "/land";
+  }
+  return next;
+}
+
+export async function requireOperatorHtml(
+  c: Context<AppEnv>
+): Promise<Response | null> {
+  if (await isOperator(c)) return null;
+  const url = new URL(c.req.url);
+  const next = encodeURIComponent(`${url.pathname}${url.search}`);
+  return c.redirect(`/login?next=${next}`, 302);
+}
+
+export async function loginCredentialsOk(
+  c: Context<AppEnv>,
+  email: string,
+  password: string
+): Promise<boolean> {
+  const wantEmail = (c.env.OPERATOR_EMAIL || "").trim().toLowerCase();
+  const gotEmail = email.trim().toLowerCase();
+  if (!wantEmail || gotEmail !== wantEmail) return false;
+  const wantPass = c.env.OPERATOR_PASSWORD || c.env.OPERATOR_TOKEN;
+  if (!wantPass) return false;
+  return timingSafeEqualString(password, wantPass);
+}
+
 export async function requireOperator(
   c: Context<AppEnv>
 ): Promise<Response | null> {

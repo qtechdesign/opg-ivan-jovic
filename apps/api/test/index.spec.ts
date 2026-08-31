@@ -2,6 +2,12 @@ import { env } from "cloudflare:test";
 import { describe, expect, it, beforeAll } from "vitest";
 import { app } from "../src/index";
 import { farmStub } from "../src/do/farm-runtime";
+import {
+  addDays,
+  localDateInTz,
+  settleEnergyDaily,
+  startOfLocalDayUtc,
+} from "../src/lib/energy";
 
 const OPERATOR = "test-operator-token";
 const INGEST = "test-ingest-token";
@@ -217,9 +223,50 @@ const MIGRATION = [
   updated_at TEXT NOT NULL,
   updated_by TEXT
 )`,
+  `CREATE TABLE climate_zones (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  plot_id TEXT,
+  name TEXT NOT NULL,
+  sensor_id TEXT NOT NULL,
+  heater_id TEXT,
+  cooler_id TEXT,
+  battery_id TEXT,
+  heat_c REAL NOT NULL DEFAULT 18,
+  cool_c REAL NOT NULL DEFAULT 26,
+  heat_c_min REAL NOT NULL DEFAULT 5,
+  heat_c_max REAL NOT NULL DEFAULT 28,
+  cool_c_min REAL NOT NULL DEFAULT 10,
+  cool_c_max REAL NOT NULL DEFAULT 35,
+  timeout_sec INTEGER NOT NULL DEFAULT 1800,
+  enabled INTEGER NOT NULL DEFAULT 1
+)`,
+  `CREATE TABLE climate_settings (
+  farm_id TEXT PRIMARY KEY,
+  heat_battery_min_pct INTEGER NOT NULL DEFAULT 30,
+  updated_at TEXT NOT NULL
+)`,
+  `CREATE TABLE energy_daily (
+  farm_id TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  kwh REAL,
+  w_peak REAL,
+  settled_at TEXT NOT NULL,
+  PRIMARY KEY (farm_id, local_date, device_id)
+)`,
 ];
 
 async function migrateAndSeed() {
+  try {
+    const existing = await env.DB.prepare(
+      `SELECT id FROM farms WHERE slug = 'ivan-jovic'`
+    ).first();
+    if (existing) return;
+  } catch {
+    /* empty isolate — create schema */
+  }
+
   for (const statement of MIGRATION) {
     await env.DB.prepare(statement).run();
   }
@@ -246,9 +293,17 @@ async function migrateAndSeed() {
       ('valve-hay-frost', ?, 'actuator', 'mqtt-generic', 'Hay frost', 'Hay field', 'mqtt', 'polje/ivan-jovic/dev/valve-hay-frost/cmnd', NULL, NULL),
       ('fps-gw-1', ?, 'gateway', 'fps-lora-gw', 'FPS GW', NULL, 'lora', 'polje/ivan-jovic/gw/fps-gw-1/health', NULL, NULL),
       ('fps-sn-1', ?, 'lora-node', 'fps-sensor-node', 'FPS sensor', 'Hay field', 'lora', 'polje/ivan-jovic/fps/fps-sn-1/stat', NULL, NULL),
-      ('fps-valve-1', ?, 'actuator', 'fps-valve', 'FPS valve', 'Hay field', 'lora', 'polje/ivan-jovic/dev/fps-valve-1/cmnd', '{"timeout_sec":600}', NULL)`
+      ('fps-valve-1', ?, 'actuator', 'fps-valve', 'FPS valve', 'Hay field', 'lora', 'polje/ivan-jovic/dev/fps-valve-1/cmnd', '{"timeout_sec":600}', NULL),
+      ('temp-house-1', ?, 'sensor', 'mqtt-generic', 'Old house air', 'Old house', 'mqtt', 'polje/ivan-jovic/dev/temp-house-1/stat', NULL, NULL),
+      ('heater-house-1', ?, 'actuator', 'mqtt-generic', 'Old house heater', 'Old house', 'mqtt', 'polje/ivan-jovic/dev/heater-house-1/cmnd', NULL, NULL),
+      ('inv-1', ?, 'inverter', 'mqtt-generic', 'Inverter stub', NULL, 'mqtt', 'polje/ivan-jovic/dev/inv-1/stat', NULL, NULL),
+      ('ups-1', ?, 'battery', 'mqtt-generic', 'UPS stub', NULL, 'mqtt', 'polje/ivan-jovic/dev/ups-1/stat', NULL, NULL)`
   )
     .bind(
+      "a1000000-0000-4000-8000-000000000001",
+      "a1000000-0000-4000-8000-000000000001",
+      "a1000000-0000-4000-8000-000000000001",
+      "a1000000-0000-4000-8000-000000000001",
       "a1000000-0000-4000-8000-000000000001",
       "a1000000-0000-4000-8000-000000000001",
       "a1000000-0000-4000-8000-000000000001",
@@ -275,6 +330,58 @@ async function migrateAndSeed() {
     .bind(
       "a1000000-0000-4000-8000-000000000001",
       "a1000000-0000-4000-8000-000000000001"
+    )
+    .run();
+
+  await env.DB.prepare(
+    `INSERT INTO climate_settings (farm_id, heat_battery_min_pct, updated_at)
+     VALUES (?, 30, '2026-08-31T00:00:00Z')`
+  )
+    .bind("a1000000-0000-4000-8000-000000000001")
+    .run();
+
+  await env.DB.prepare(
+    `INSERT INTO climate_zones (
+       id, farm_id, plot_id, name, sensor_id, heater_id, cooler_id, battery_id,
+       heat_c, cool_c, heat_c_min, heat_c_max, cool_c_min, cool_c_max, timeout_sec, enabled
+     ) VALUES (
+       'f1000000-0000-4000-8000-000000000001', ?, ?,
+       'Old house climate', 'temp-house-1', 'heater-house-1', NULL, 'ups-1',
+       18, 26, 5, 28, 10, 35, 1800, 1
+     )`
+  )
+    .bind(
+      "a1000000-0000-4000-8000-000000000001",
+      "b1000000-0000-4000-8000-000000000001"
+    )
+    .run();
+
+  await env.DB.prepare(
+    `INSERT INTO farms (id, slug, name, country, timezone, lat, lon, starlink_site, created_at)
+     VALUES (?, 'demo-opg', 'Demo OPG', 'HR', 'Europe/Zagreb', NULL, NULL, NULL, '2026-08-31T00:00:00Z')`
+  )
+    .bind("a2000000-0000-4000-8000-000000000001")
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO plots (id, farm_id, name, hectares, use_type, notes) VALUES
+      ('b2000000-0000-4000-8000-000000000001', ?, 'Yard', NULL, 'yard', NULL),
+      ('b2000000-0000-4000-8000-000000000002', ?, 'Hay field', NULL, 'hay', NULL),
+      ('b2000000-0000-4000-8000-000000000003', ?, 'Garden', NULL, 'garden', NULL)`
+  )
+    .bind(
+      "a2000000-0000-4000-8000-000000000001",
+      "a2000000-0000-4000-8000-000000000001",
+      "a2000000-0000-4000-8000-000000000001"
+    )
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO devices (id, farm_id, kind, driver, name, zone, protocol, address, config_json, last_seen) VALUES
+      ('demo-soil-1', ?, 'sensor', 'mqtt-generic', 'Garden soil', 'Garden', 'mqtt', 'polje/demo-opg/dev/demo-soil-1/stat', NULL, NULL),
+      ('demo-cam-yard', ?, 'camera', 'rtsp', 'Yard camera', 'Yard', 'rtsp', 'env:CAMERA_YARD_RTSP', NULL, NULL)`
+  )
+    .bind(
+      "a2000000-0000-4000-8000-000000000001",
+      "a2000000-0000-4000-8000-000000000001"
     )
     .run();
 }
@@ -385,13 +492,19 @@ describe("polje M1", () => {
     expect(audit.audit.some((a) => a.action === "planting.patch")).toBe(true);
   });
 
-  it("GET /land returns HTML", async () => {
+  it("GET /land without session → login redirect", async () => {
     const res = await app.request("/land", {}, env);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location") || "").toContain("/login");
+  });
+
+  it("GET /login returns HTML", async () => {
+    const res = await app.request("/login", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Zemlja");
     expect(html).toContain("Prijava");
-    expect(html).not.toContain("Operator token");
+    expect(html).toContain("Email");
+    expect(html).toContain("Lozinka");
   });
 
   it("POST /v1/session sets cookie that authorizes writes", async () => {
@@ -400,7 +513,7 @@ describe("polje M1", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: "wrong" }),
+        body: JSON.stringify({ email: "info@qtech.hr", password: "wrong" }),
       },
       env
     );
@@ -411,7 +524,10 @@ describe("polje M1", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: OPERATOR }),
+        body: JSON.stringify({
+          email: "info@qtech.hr",
+          password: "test-operator-password",
+        }),
       },
       env
     );
@@ -810,14 +926,10 @@ describe("polje M7 money ledger", () => {
     );
   });
 
-  it("GET /ledger returns HTML", async () => {
+  it("GET /ledger without session → login redirect", async () => {
     const res = await app.request("/ledger", {}, env);
-    expect(res.status).toBe(200);
-    const html = await res.text();
-    expect(html).toContain("Knjiga");
-    expect(html).toContain("Prijava");
-    expect(html).not.toContain("Operator token");
-    expect(html).toContain("nije porezna");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location") || "").toContain("/login");
   });
 });
 
@@ -882,33 +994,152 @@ describe("polje M8 MCP + Grok", () => {
     expect(after?.n).toBe(before?.n ?? 0);
   });
 
-  it("run_irrigation with confirm → module_not_ready, zero new commands", async () => {
+  it("run_irrigation with confirm → sent command + audit", async () => {
     const { runTool } = await import("../src/mcp/tools");
-    const before = await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM commands WHERE farm_id = ?`
-    )
-      .bind(FARM)
-      .first<{ n: number }>();
-
     const result = await runTool(
       "run_irrigation",
       { env, actor: "agent:mcp", allowConfirm: true },
       {
-        zone_id: "zone-garden-drip",
+        zone_id: "d1000000-0000-4000-8000-000000000001",
         duration_sec: 120,
         reason: "test dry soil",
         confirm: true,
       }
     );
-    expect(result.error).toBe("module_not_ready");
-    expect(result.module).toBe("M5");
+    expect(result.error).toBeUndefined();
+    expect((result as { ok?: boolean }).ok).toBe(true);
+    expect((result as { status?: string }).status).toBe("sent");
 
-    const after = await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM commands WHERE farm_id = ?`
+    const cmd = await env.DB.prepare(
+      `SELECT action, source, confirmed_by FROM commands WHERE action = 'valve.open' ORDER BY created_at DESC LIMIT 1`
+    ).first<{ action: string; source: string; confirmed_by: string }>();
+    expect(cmd?.action).toBe("valve.open");
+    expect(cmd?.source).toBe("api");
+    expect(cmd?.confirmed_by).toBe("agent:mcp");
+  });
+
+  it("propose_automation validates JSON + enable/set_actuator confirm gate", async () => {
+    const { runTool } = await import("../src/mcp/tools");
+
+    const bad = await runTool(
+      "propose_automation",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        name: "Bad draft",
+        trigger_json: '{"type":"nope"}',
+        action_json: '{"type":"snapshot.take","camera_id":"cam-yard"}',
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(bad.error).toBe("validation");
+
+    const draft = await runTool(
+      "propose_automation",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        name: "MCP soil propose",
+        trigger_json: JSON.stringify({
+          type: "metric",
+          device_id: "soil-n-1",
+          metric: "moisture",
+          op: "lt",
+          value: 0.2,
+        }),
+        action_json: JSON.stringify({
+          type: "command.propose",
+          device_id: "valve-garden-drip",
+          action: "irrigation.run",
+          payload: { duration_sec: 60 },
+        }),
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(draft.ok).toBe(true);
+    expect((draft as { automation: { enabled: number; risk: string; id: string } }).automation.enabled).toBe(0);
+    expect((draft as { automation: { risk: string } }).automation.risk).toBe("high");
+    const autoId = (draft as { automation: { id: string } }).automation.id;
+
+    const enableProposal = await runTool(
+      "enable_automation",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        automation_id: autoId,
+        reason: "want it on",
+        confirm: false,
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(enableProposal.status).toBe("proposal");
+    const stillOff = await env.DB.prepare(
+      `SELECT enabled FROM automations WHERE id = ?`
     )
-      .bind(FARM)
-      .first<{ n: number }>();
-    expect(after?.n).toBe(before?.n ?? 0);
+      .bind(autoId)
+      .first<{ enabled: number }>();
+    expect(stillOff?.enabled).toBe(0);
+
+    const grokBlocked = await runTool(
+      "enable_automation",
+      { env, actor: "agent:grok", allowConfirm: false },
+      {
+        automation_id: autoId,
+        reason: "grok cannot confirm",
+        confirm: true,
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(grokBlocked.status).toBe("proposal");
+
+    const enabled = await runTool(
+      "enable_automation",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        automation_id: autoId,
+        reason: "operator enable from mcp",
+        confirm: true,
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(enabled.ok).toBe(true);
+    expect((enabled as { enabled: number }).enabled).toBe(1);
+
+    const before = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM commands WHERE action = 'actuator.set'`
+    ).first<{ n: number }>();
+
+    const actProposal = await runTool(
+      "set_actuator",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        device_id: "valve-garden-drip",
+        state: "on",
+        timeout_sec: 30,
+        reason: "test actuator",
+        confirm: false,
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(actProposal.status).toBe("proposal");
+
+    const afterProposal = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM commands WHERE action = 'actuator.set'`
+    ).first<{ n: number }>();
+    expect(afterProposal?.n).toBe(before?.n ?? 0);
+
+    const actOk = await runTool(
+      "set_actuator",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      {
+        device_id: "valve-garden-drip",
+        state: "off",
+        timeout_sec: 15,
+        reason: "test actuator off",
+        confirm: true,
+        farm_slug: "ivan-jovic",
+      }
+    );
+    expect(actOk.ok).toBe(true);
+    expect((actOk as { status: string }).status).toBe("sent");
+    expect((actOk as { action: string }).action).toBe("actuator.set");
   });
 
   it("add_planting_note writes note + audit agent:mcp", async () => {
@@ -973,6 +1204,24 @@ describe("polje M8 MCP + Grok", () => {
       }
     );
     expect(result.status).toBe("proposal");
+  });
+
+  it("irrigation MCP resource is live (not not_ready)", async () => {
+    const { readPoljeResource } = await import("../src/mcp/resources");
+    const result = await readPoljeResource(
+      env,
+      "polje://farm/ivan-jovic/irrigation"
+    );
+    expect("error" in result).toBe(false);
+    if ("text" in result) {
+      const body = JSON.parse(result.text) as {
+        status?: string;
+        rain_lockout?: boolean;
+        zones?: unknown[];
+      };
+      expect(body.status).not.toBe("not_ready");
+      expect(Array.isArray(body.zones)).toBe(true);
+    }
   });
 
   it("briefing cron twice same local_date → one row", async () => {
@@ -1191,6 +1440,73 @@ describe("polje M9 automations", () => {
     expect(drip!.status).toBe("proposed");
   });
 
+  it("metric for_sec waits until dwell elapses", async () => {
+    const { evaluateAutomations } = await import("../src/lib/automations");
+    const create = await app.request(
+      "/v1/automations",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          name: "Dwell moisture",
+          enabled: true,
+          confirm: true,
+          reason: "unit test dwell",
+          cooldown_sec: 0,
+          trigger: {
+            type: "metric",
+            device_id: "soil-n-1",
+            metric: "moisture",
+            op: "lt",
+            value: 0.5,
+            for_sec: 120,
+          },
+          action: {
+            type: "command.propose",
+            device_id: "valve-dwell-test",
+            action: "irrigation.run",
+            payload: { duration_sec: 60 },
+          },
+        }),
+      },
+      env
+    );
+    expect(create.status).toBe(201);
+    const created = (await create.json()) as { id: string; enabled: number };
+    expect(created.enabled).toBe(1);
+
+    const state = {
+      farm_id: "ivan-jovic",
+      starlink: "up" as const,
+      metrics: {
+        "soil-n-1:moisture": {
+          device_id: "soil-n-1",
+          metric: "moisture",
+          value: 0.1,
+          ts: new Date().toISOString(),
+        },
+      },
+    };
+    const dwell: Record<string, number> = {};
+    const first = await evaluateAutomations(env.DB, state, { dwell });
+    expect(first.fired).not.toContain(created.id);
+    expect(dwell[created.id]).toBeTypeOf("number");
+
+    const cmdsEarly = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM commands WHERE device_id = 'valve-dwell-test'`
+    ).first<{ n: number }>();
+    expect(cmdsEarly?.n ?? 0).toBe(0);
+
+    dwell[created.id] = Date.now() - 180_000;
+    const second = await evaluateAutomations(env.DB, state, { dwell });
+    expect(second.fired).toContain(created.id);
+
+    const cmds = await env.DB.prepare(
+      `SELECT status FROM commands WHERE device_id = 'valve-dwell-test' ORDER BY created_at DESC LIMIT 1`
+    ).first<{ status: string }>();
+    expect(cmds?.status).toBe("proposed");
+  });
+
   it("low-risk snapshot action enqueues sent command", async () => {
     const create = await app.request(
       "/v1/automations",
@@ -1324,12 +1640,18 @@ describe("polje M9 automations", () => {
     const html = await res.text();
     expect(html).toContain("Ruke");
     expect(html).toContain("Automatizacije");
+    expect(html).toContain("data-farm=");
+    expect(html).toContain("const FARM");
   });
 });
 
 describe("polje M5 irrigation", () => {
   const DRIP = "d1000000-0000-4000-8000-000000000001";
   const FROST = "d1000000-0000-4000-8000-000000000002";
+
+  beforeAll(async () => {
+    await migrateAndSeed();
+  });
 
   it("POST run without confirm → proposal, zero commands", async () => {
     const before = await env.DB.prepare(
@@ -1487,6 +1809,106 @@ describe("polje M5 irrigation", () => {
     };
     expect(body.zones.some((z) => z.kind === "drip")).toBe(true);
     expect(body.zones.some((z) => z.kind === "frost")).toBe(true);
+  });
+
+  it("ACK valve.open → run status running, not done", async () => {
+    await env.DB.prepare(
+      `UPDATE farm_settings SET rain_lockout = 0 WHERE farm_id = ?`
+    )
+      .bind("a1000000-0000-4000-8000-000000000001")
+      .run();
+
+    const res = await app.request(
+      `/v1/irrigation/zones/${DRIP}/run`,
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          duration_sec: 120,
+          reason: "ack running check",
+          confirm: true,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { command_id: string; run_id: string };
+
+    const ack = await app.request(
+      `/v1/commands/${body.command_id}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "acked" }),
+      },
+      env
+    );
+    expect(ack.status).toBe(200);
+
+    const run = await env.DB.prepare(
+      `SELECT status, ended_at FROM irrigation_runs WHERE id = ?`
+    )
+      .bind(body.run_id)
+      .first<{ status: string; ended_at: string | null }>();
+    expect(run?.status).toBe("running");
+    expect(run?.ended_at).toBeNull();
+  });
+
+  it("POST /v1/ingest/irrigation-run records schedule fire + audit", async () => {
+    const started = new Date().toISOString();
+    const res = await app.request(
+      "/v1/ingest/irrigation-run",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          farm_id: "ivan-jovic",
+          zone_id: DRIP,
+          duration_sec: 90,
+          started_at: started,
+          reason: "offline schedule",
+          schedule_id: "e1000000-0000-4000-8000-000000000001",
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { ok: boolean; run_id: string };
+    expect(body.ok).toBe(true);
+
+    const dup = await app.request(
+      "/v1/ingest/irrigation-run",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          farm_id: "ivan-jovic",
+          zone_id: DRIP,
+          duration_sec: 90,
+          started_at: started,
+          reason: "offline schedule",
+          schedule_id: "e1000000-0000-4000-8000-000000000001",
+        }),
+      },
+      env
+    );
+    expect(dup.status).toBe(200);
+    const dupBody = (await dup.json()) as { duplicate?: boolean };
+    expect(dupBody.duplicate).toBe(true);
+
+    const audit = await env.DB.prepare(
+      `SELECT actor FROM audit WHERE action = 'irrigation.run' AND actor = 'edge' ORDER BY id DESC LIMIT 1`
+    ).first<{ actor: string }>();
+    expect(audit?.actor).toBe("edge");
   });
 });
 
@@ -1708,5 +2130,308 @@ describe("polje M4 FPS frost", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { farm_id: string };
     expect(body.farm_id).toBeTruthy();
+  });
+});
+
+describe("polje M6 climate + energy", () => {
+  const ZONE = "f1000000-0000-4000-8000-000000000001";
+  const FARM = "a1000000-0000-4000-8000-000000000001";
+
+  beforeAll(async () => {
+    await migrateAndSeed();
+  });
+
+  it("GET /v1/climate/now lists Old house zone", async () => {
+    const res = await app.request("/v1/climate/now?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      heat_battery_min_pct: number;
+      zones: Array<{ id: string; name: string; heat_c: number }>;
+    };
+    expect(body.heat_battery_min_pct).toBe(30);
+    const zone = body.zones.find((z) => z.id === ZONE);
+    expect(zone).toBeTruthy();
+    expect(zone?.heat_c).toBe(18);
+  });
+
+  it("GET /v1/energy/now returns solar/battery shape", async () => {
+    const res = await app.request("/v1/energy/now?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      inverter_id: string;
+      solar_w: number | null;
+      loads: unknown[];
+    };
+    expect(body.inverter_id).toBe("inv-1");
+    expect(Array.isArray(body.loads)).toBe(true);
+  });
+
+  it("energy today kWh from kwh_today metric", async () => {
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO readings (device_id, metric, value, ts) VALUES ('inv-1', 'kwh_today', 3.5, ?)`
+    )
+      .bind(now)
+      .run();
+
+    const res = await app.request("/v1/energy/now?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { kwh_today: number | null };
+    expect(body.kwh_today).toBe(3.5);
+  });
+
+  it("POST setpoint without confirm → proposal, zero commands", async () => {
+    const before = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM commands WHERE action = 'setpoint.set'`
+    ).first<{ n: number }>();
+
+    const res = await app.request(
+      `/v1/climate/zones/${ZONE}/setpoint`,
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          heat_c: 19,
+          cool_c: 26,
+          reason: "evening in the house",
+          confirm: false,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { proposal: boolean };
+    expect(body.proposal).toBe(true);
+
+    const after = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM commands WHERE action = 'setpoint.set'`
+    ).first<{ n: number }>();
+    expect(after?.n).toBe(before?.n ?? 0);
+  });
+
+  it("POST setpoint heat_c 50 → 400", async () => {
+    const res = await app.request(
+      `/v1/climate/zones/${ZONE}/setpoint`,
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          heat_c: 50,
+          reason: "too hot",
+          confirm: true,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("heat lockout when battery < 30%", async () => {
+    const ts = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO readings (device_id, metric, value, ts) VALUES
+        ('ups-1', 'battery_pct', 20, ?),
+        ('temp-house-1', 'temp_c', 10, ?)`
+    )
+      .bind(ts, ts)
+      .run();
+
+    const res = await app.request(
+      `/v1/climate/zones/${ZONE}/setpoint`,
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          heat_c: 20,
+          cool_c: 26,
+          reason: "try heat on low battery",
+          confirm: true,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("heat_lockout");
+  });
+
+  it("confirm setpoint with battery ok → command + audit", async () => {
+    const ts = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO readings (device_id, metric, value, ts) VALUES
+        ('ups-1', 'battery_pct', 80, ?),
+        ('temp-house-1', 'temp_c', 12, ?)`
+    )
+      .bind(ts, ts)
+      .run();
+
+    const res = await app.request(
+      `/v1/climate/zones/${ZONE}/setpoint`,
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          heat_c: 19,
+          cool_c: 26,
+          reason: "house occupied tonight",
+          confirm: true,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { ok: boolean; command_id: string };
+    expect(body.ok).toBe(true);
+    expect(body.command_id).toBeTruthy();
+
+    const audit = await env.DB.prepare(
+      `SELECT action FROM audit WHERE action = 'climate.setpoint' LIMIT 1`
+    ).first<{ action: string }>();
+    expect(audit?.action).toBe("climate.setpoint");
+  });
+
+  it("GET /klima returns HTML", async () => {
+    const res = await app.request("/klima", {}, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Klima");
+    expect(html).toContain("Energija");
+  });
+
+  it("settleEnergyDaily rolls up yesterday inverter kWh", async () => {
+    const tz = "Europe/Zagreb";
+    const yesterday = addDays(localDateInTz(new Date(), tz), -1);
+    const since = startOfLocalDayUtc(yesterday, tz);
+    const todayStart = startOfLocalDayUtc(localDateInTz(new Date(), tz), tz);
+    const late = new Date(Date.parse(todayStart) - 60_000).toISOString();
+
+    await env.DB.prepare(
+      `INSERT INTO readings (device_id, metric, value, ts) VALUES ('inv-1', 'kwh', 10, ?)`
+    )
+      .bind(since)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO readings (device_id, metric, value, ts) VALUES ('inv-1', 'kwh', 14, ?)`
+    )
+      .bind(late)
+      .run();
+
+    const first = await settleEnergyDaily(env.DB, FARM, tz);
+    expect(first.settled).toBe(true);
+    expect(first.kwh).toBe(4);
+
+    const again = await settleEnergyDaily(env.DB, FARM, tz);
+    expect(again.settled).toBe(false);
+
+    const row = await env.DB.prepare(
+      `SELECT kwh FROM energy_daily WHERE farm_id = ? AND local_date = ? AND device_id = 'inv-1'`
+    )
+      .bind(FARM, yesterday)
+      .first<{ kwh: number }>();
+    expect(row?.kwh).toBe(4);
+  });
+
+  it("overview includes climate + energy", async () => {
+    const res = await app.request("/v1/overview?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      climate: { heat_c: number } | null;
+      energy: { inverter_id?: string } | { solar_w: number | null };
+    };
+    expect(body.climate).toBeTruthy();
+    expect(body.energy).toBeTruthy();
+  });
+});
+
+describe("polje M10 fork kit", () => {
+  beforeAll(async () => {
+    await migrateAndSeed();
+  });
+
+  it("GET /v1/farms lists both tenants", async () => {
+    const res = await app.request("/v1/farms", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      farms: Array<{ slug: string; name: string }>;
+    };
+    const slugs = body.farms.map((f) => f.slug).sort();
+    expect(slugs).toEqual(["demo-opg", "ivan-jovic"]);
+  });
+
+  it("GET /v1/farms/demo-opg returns Demo OPG plots", async () => {
+    const res = await app.request("/v1/farms/demo-opg", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      slug: string;
+      name: string;
+      plots: Array<{ name: string }>;
+    };
+    expect(body.slug).toBe("demo-opg");
+    expect(body.name).toBe("Demo OPG");
+    expect(body.plots.map((p) => p.name).sort()).toEqual([
+      "Garden",
+      "Hay field",
+      "Yard",
+    ]);
+  });
+
+  it("GET /v1/plots?farm=demo-opg does not leak House yard", async () => {
+    const res = await app.request("/v1/plots?farm=demo-opg", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { plots: Array<{ name: string }> };
+    expect(body.plots.some((p) => p.name === "House yard")).toBe(false);
+    expect(body.plots.some((p) => p.name === "Yard")).toBe(true);
+  });
+
+  it("ingest to demo-opg does not change ivan-jovic overview", async () => {
+    const res = await app.request(
+      "/v1/ingest",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INGEST}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          farm_id: "demo-opg",
+          batch_id: "demo-iso-1",
+          sent_at: "2026-08-31T12:00:00Z",
+          readings: [
+            {
+              device_id: "demo-soil-1",
+              metric: "moisture",
+              value: 0.91,
+              ts: "2026-08-31T12:00:00Z",
+            },
+          ],
+          health: { starlink: "up" as const },
+        }),
+      },
+      env
+    );
+    expect([200, 202]).toContain(res.status);
+
+    const ivan = await app.request("/v1/overview?farm=ivan-jovic", {}, env);
+    expect(ivan.status).toBe(200);
+    const ivanBody = (await ivan.json()) as {
+      slug?: string;
+      live: { metrics: Record<string, { value: number }> };
+    };
+    expect(ivanBody.live.metrics["demo-soil-1:moisture"]).toBeUndefined();
+  });
+
+  it("GET /?farm=demo-opg is Demo OPG; default / is Ivan", async () => {
+    const demo = await app.request("/?farm=demo-opg", {}, env);
+    expect(demo.status).toBe(200);
+    const demoHtml = await demo.text();
+    expect(demoHtml).toContain("Demo OPG");
+    expect(demoHtml).toContain('data-farm="demo-opg"');
+    expect(demoHtml).not.toContain("House yard");
+
+    const ivan = await app.request("/", {}, env);
+    expect(ivan.status).toBe(200);
+    const ivanHtml = await ivan.text();
+    expect(ivanHtml).toContain("OPG Ivan Jović");
+    expect(ivanHtml).toContain("House yard");
   });
 });

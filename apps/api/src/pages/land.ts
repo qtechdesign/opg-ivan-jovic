@@ -191,19 +191,20 @@ export async function renderHome(c: Context<AppEnv>) {
       <a class="btn-ghost" href="${farmPath("/eyes", farmSlug, defaultSlug)}">Pogled na farme</a>
       <a class="btn-ghost" href="${farmPath("/land", farmSlug, defaultSlug)}">Zemlja</a>
     </p>
-    <footer>Polje is the field. The field was here first.</footer>
+    <footer>Polje is the field. The field was here first. · <a href="/login">Admin</a></footer>
   </main>
   <aside id="grok-dock" class="grok-dock" aria-label="Grok">
     <div class="grok-bar">
       <span class="grok-label">GROK</span>
       <span id="grok-brief" class="grok-brief dim"></span>
-      <input id="grok-input" type="text" autocomplete="off" placeholder="Pitaj farmu…" />
-      <button type="button" class="btn-ghost" id="grok-send">Šalji</button>
+      <input id="grok-input" class="admin-only" type="text" autocomplete="off" placeholder="Pitaj farmu…" />
+      <button type="button" class="btn-ghost admin-only" id="grok-send">Šalji</button>
     </div>
     <pre id="grok-out" class="grok-out" hidden></pre>
   </aside>
   <script>
     ${FARM_SLUG_JS}
+    ${OPERATOR_SESSION_JS}
     const pip = document.getElementById("starlink-pip");
     const elTemp = document.getElementById("m-temp");
     const elKw = document.getElementById("m-kw");
@@ -302,7 +303,7 @@ export async function renderHome(c: Context<AppEnv>) {
           });
           const data = await res.json();
           if (res.status === 401) {
-            out.textContent = "Prijavi se na Zemlja, pa pitaj.";
+            out.textContent = "Prijavi se (Admin) pa pitaj.";
           } else if (!res.ok) {
             out.textContent = data.error || ("HTTP " + res.status);
           } else {
@@ -318,6 +319,7 @@ export async function renderHome(c: Context<AppEnv>) {
         if (e.key === "Enter") ask();
       });
     })();
+    opRefreshGate();
   </script>
 </body>
 </html>`);
@@ -448,7 +450,7 @@ export async function renderLand(c: Context<AppEnv>) {
       <ul>${plotsHtml}</ul>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Nova parcela</h2>
       <form id="form-plot">
         <label for="plot-name">Naziv</label>
@@ -478,7 +480,7 @@ export async function renderLand(c: Context<AppEnv>) {
       </form>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Novo sađenje</h2>
       <form id="form-planting">
         <label for="plant-plot">Parcela</label>
@@ -514,7 +516,7 @@ export async function renderLand(c: Context<AppEnv>) {
       </form>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Ažuriraj fazu</h2>
       <form id="form-patch">
         <label for="patch-id">Sađenje</label>
@@ -536,7 +538,7 @@ export async function renderLand(c: Context<AppEnv>) {
 
     <section class="panel">
       <h2>Fotografija rasta</h2>
-      <form id="form-media">
+      <form id="form-media" class="admin-only">
         <label for="media-file">JPEG / PNG / WebP ≤ 5 MB</label>
         <input id="media-file" name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
         <label for="media-plot">Parcela (opcionalno)</label>

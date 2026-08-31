@@ -1,8 +1,6 @@
 /**
- * Polje Worker — M0–M10 + mail + ledger + FPS
- *
- * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
- * Cron: every 5 min (irrigation schedules + yesterday solar settle + 06:00 Zagreb briefing gate)
+ * Placeholder Wrangler config for a Polje fork.
+ * Copy values into wrangler.jsonc — do not commit this instance’s D1 id, R2, or .hr routes.
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -16,8 +14,7 @@
   },
   "vars": {
     "SERVICE_NAME": "polje",
-    "DEFAULT_FARM_SLUG": "ivan-jovic",
-    "OPERATOR_EMAIL": "info@qtech.hr"
+    "DEFAULT_FARM_SLUG": "YOUR-FARM-SLUG"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]
@@ -26,14 +23,14 @@
     {
       "binding": "DB",
       "database_name": "polje",
-      "database_id": "5413c190-29d4-406d-aa61-2dd44a489aca",
+      "database_id": "YOUR-D1-DATABASE-ID",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
-      "bucket_name": "polje-media"
+      "bucket_name": "YOUR-R2-BUCKET"
     }
   ],
   "queues": {
@@ -48,11 +45,6 @@
       }
     ]
   },
-  "send_email": [
-    {
-      "name": "EMAIL"
-    }
-  ],
   "durable_objects": {
     "bindings": [
       { "name": "FARM", "class_name": "FarmRuntime" }
@@ -63,9 +55,5 @@
       "tag": "v1-farm-runtime",
       "new_sqlite_classes": ["FarmRuntime"]
     }
-  ],
-  "routes": [
-    { "pattern": "opg-ivanjovic.hr", "custom_domain": true },
-    { "pattern": "www.opg-ivanjovic.hr", "custom_domain": true }
   ]
 }

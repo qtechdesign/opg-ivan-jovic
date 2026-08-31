@@ -2,14 +2,14 @@
 
 House from **1923**. Birth house of grandmother Katica. Hay, cows, family labour. The farm sat unused for ~30 years. This software is the next chapter of that same ground: an operating system for a Croatian family holding (**OPG**).
 
-**Polje** (`polje` = field) is the platform name. First tenant: **OPG Ivan Jović**. Built so another family farm can fork the same roadmap.
+**Polje** (`polje` = field) is the platform name. First tenant: **OPG Ivan Jović**. Built so another family farm can fork the same roadmap. Fork kit: [`docs/FORK.md`](docs/FORK.md). Local `npm run seed:local` also loads example farm `demo-opg` (`/land?farm=demo-opg`). Production stays `ivan-jovic` only.
 
 ## Live
 
 - https://opg-ivanjovic.hr
 - https://www.opg-ivanjovic.hr
 - Debug: https://polje.quiet-lab-19ab.workers.dev
-- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, land at `/land`, water at `/water`, eyes at `/eyes`, frost at `/frost`, money at `/ledger`, MCP at `/mcp`
+- API: `GET /v1/health`, `GET /v1/farms/ivan-jovic`, land at `/land`, water at `/water`, climate at `/klima`, eyes at `/eyes`, frost at `/frost`, hands at `/hands`, money at `/ledger`, MCP at `/mcp`
 - Docs: [`docs/API.md`](docs/API.md) · [`docs/MCP.md`](docs/MCP.md) · [`docs/FPS.md`](docs/FPS.md)
 
 If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1.1 opg-ivanjovic.hr`) — custom domains are attached and serving.
@@ -22,7 +22,7 @@ If local DNS still cannot resolve the `.hr` names, query Cloudflare (`dig @1.1.1
 | D1 | Relational ledger (farms, plots, plantings, irrigation, frost, finance, briefings, audit, …) |
 | R2 `polje-media` | Growth diary photos + ledger receipts + briefings |
 | Queue `polje-ingest` + FarmRuntime DO | Live telemetry + WS + automation ticks |
-| Cron `*/5` | Irrigation schedule backup + 06:00 Zagreb briefing gate |
+| Cron `*/5` | Irrigation schedule backup + yesterday solar settle + 06:00 Zagreb briefing gate |
 | Polje Edge + Mosquitto + go2rtc | Farm LAN ingest / cameras / valve write-leader (`deploy/edge`) |
 | FPS fork `forks/qtech` | LoRa gateway + SensorNode / ValveController lineage |
 | xAI Grok | Operator chat + daily briefing (`XAI_API_KEY`) |
@@ -34,7 +34,8 @@ Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
 | Where | What |
 |---|---|
 | `.dev.vars` (gitignored) | Local Wrangler secrets — copy from `.dev.vars.example` |
-| Cloudflare Secrets | Production — `OPERATOR_TOKEN`, `INGEST_TOKEN`, `AGENT_TOKEN`, `XAI_API_KEY` (optional `OPERATOR_NOTIFY_EMAIL`) |
+| Cloudflare Secrets | Production — `OPERATOR_PASSWORD`, `OPERATOR_TOKEN`, `INGEST_TOKEN`, `AGENT_TOKEN`, `XAI_API_KEY`. Login email is `OPERATOR_EMAIL` in wrangler vars. |
+
 | GitHub Actions secrets | CI only — `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
 
 Cursor MCP: copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) → `.cursor/mcp.json` with `AGENT_TOKEN`.
@@ -53,9 +54,11 @@ Then:
 - http://127.0.0.1:8787/
 - http://127.0.0.1:8787/land
 - http://127.0.0.1:8787/water
+- http://127.0.0.1:8787/klima
 - http://127.0.0.1:8787/eyes
 - http://127.0.0.1:8787/frost
 - http://127.0.0.1:8787/ledger
+- http://127.0.0.1:8787/land?farm=demo-opg
 - http://127.0.0.1:8787/v1/overview?farm=ivan-jovic
 - http://127.0.0.1:8787/v1/irrigation/zones?farm=ivan-jovic
 
@@ -86,7 +89,7 @@ Credit: Frost Protection System inherited from [qtechdesign/qtech](https://githu
 
 ## Agents
 
-See [`AGENTS.md`](AGENTS.md) and `.cursor/rules/`. Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+See [`AGENTS.md`](AGENTS.md) and `.cursor/rules/`. Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md). Forking: [`docs/FORK.md`](docs/FORK.md).
 
 ## License
 

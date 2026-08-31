@@ -23,6 +23,7 @@ export function siteNav(slug: string, defaultSlug: string): string {
       <a href="${href("/hands")}">Ruke</a>
       <a href="${href("/ledger")}">Knjiga</a>
       <a href="${href("/mail")}">Pošta</a>
+      <a href="/login">Admin</a>
     </nav>`;
 }
 
@@ -62,7 +63,6 @@ export const CHASSIS_CSS = `
   --ghost-border: rgba(240, 240, 250, 0.35);
   --leaf: #3d8c4a;
   --hay: #d4a017;
-  --ice: #8ec8d8;
   --soil: #6b4a2e;
   --ice: #7ec8e3;
   --alarm: #c43c2c;
@@ -204,6 +204,7 @@ textarea { min-height: 80px; resize: vertical; }
 }
 .msg { margin-top: 10px; font-size: 13px; color: var(--leaf); }
 .msg.err { color: var(--alarm); }
+body:not(.is-admin) .admin-only { display: none !important; }
 .risk-high { color: var(--alarm); }
 .risk-medium { color: var(--hay); }
 .risk-low { color: var(--leaf); }

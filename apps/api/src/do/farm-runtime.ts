@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { IngestBatch } from "@polje/schema";
 import { evaluateAutomations } from "../lib/automations";
-import { defaultFarmSlug } from "../lib/farm";
+import { defaultFarmSlug, getFarmBySlug } from "../lib/farm";
 
 export type MetricKey = string; // `${device_id}:${metric}`
 
@@ -60,6 +60,27 @@ export class FarmRuntime extends DurableObject<Env> {
     await this.ctx.storage.setAlarm(Date.now() + TICK_MS);
   }
 
+  private async runAutomations(
+    state: FarmLiveState,
+    opts?: { forceId?: string; forceManual?: boolean }
+  ) {
+    const dwell =
+      (await this.ctx.storage.get<Record<string, number>>("dwell")) ?? {};
+    const result = await evaluateAutomations(this.env.DB, state, {
+      ...opts,
+      dwell,
+    });
+    await this.ctx.storage.put("dwell", dwell);
+    if (result.fired.length) {
+      this.broadcast({
+        type: "automation",
+        farm_id: state.farm_id,
+        fired: result.fired,
+      });
+    }
+    return result;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const farmId = url.searchParams.get("farm_id") || defaultFarmSlug(this.env);
@@ -111,17 +132,10 @@ export class FarmRuntime extends DurableObject<Env> {
         /* empty */
       }
       const state = await this.loadState(farmId);
-      const result = await evaluateAutomations(this.env.DB, state, {
+      const result = await this.runAutomations(state, {
         forceId: body.force_id,
         forceManual: body.force_manual,
       });
-      if (result.fired.length) {
-        this.broadcast({
-          type: "automation",
-          farm_id: state.farm_id,
-          fired: result.fired,
-        });
-      }
       return Response.json(result);
     }
 
@@ -185,12 +199,19 @@ export class FarmRuntime extends DurableObject<Env> {
         await this.env.DB.batch(stmts);
       }
 
+      const farmRow =
+        (await getFarmBySlug(this.env.DB, batch.farm_id)) ??
+        (await this.env.DB.prepare(
+          `SELECT id FROM farms WHERE id = ?`
+        )
+          .bind(batch.farm_id)
+          .first<{ id: string }>());
       await this.env.DB.prepare(
         `INSERT INTO audit (farm_id, actor, action, entity, before_json, after_json, ts)
          VALUES (?, 'edge', 'ingest.batch', ?, NULL, ?, ?)`
       )
         .bind(
-          "a1000000-0000-4000-8000-000000000001",
+          farmRow?.id ?? batch.farm_id,
           `batch:${batch.batch_id}`,
           JSON.stringify({
             batch_id: batch.batch_id,
@@ -200,6 +221,14 @@ export class FarmRuntime extends DurableObject<Env> {
           now
         )
         .run();
+
+      if (batch.health?.frost && farmRow?.id) {
+        await this.env.DB.prepare(
+          `UPDATE frost_programs SET status = ?, updated_at = ? WHERE farm_id = ?`
+        )
+          .bind(batch.health.frost, now, farmRow.id)
+          .run();
+      }
     } catch (err) {
       console.error("D1 flush after ingest failed", err);
     }
@@ -207,14 +236,7 @@ export class FarmRuntime extends DurableObject<Env> {
     this.broadcast({ type: "ingest", ...state });
 
     try {
-      const evalResult = await evaluateAutomations(this.env.DB, state);
-      if (evalResult.fired.length) {
-        this.broadcast({
-          type: "automation",
-          farm_id: state.farm_id,
-          fired: evalResult.fired,
-        });
-      }
+      await this.runAutomations(state);
     } catch (err) {
       console.error("automation evaluate after ingest failed", err);
     }
@@ -271,14 +293,7 @@ export class FarmRuntime extends DurableObject<Env> {
           last_batch_id: null,
           metrics: {},
         } satisfies FarmLiveState);
-      const result = await evaluateAutomations(this.env.DB, live);
-      if (result.fired.length) {
-        this.broadcast({
-          type: "automation",
-          farm_id: live.farm_id,
-          fired: result.fired,
-        });
-      }
+      await this.runAutomations(live);
     } catch (err) {
       console.error("automation alarm tick failed", err);
     }

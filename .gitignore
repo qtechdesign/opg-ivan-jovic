@@ -16,6 +16,7 @@ Icon?
 Icon
 .idea/
 .vscode/
+.cursor/mcp.json
 *.swp
 *.swo
 

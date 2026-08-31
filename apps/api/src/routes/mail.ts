@@ -14,9 +14,6 @@ type AppEnv = { Bindings: Cloudflare.Env };
 export const mailApi = new Hono<AppEnv>();
 
 mailApi.get("/v1/mail/summary", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
@@ -26,9 +23,6 @@ mailApi.get("/v1/mail/summary", async (c) => {
 });
 
 mailApi.get("/v1/mail", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
@@ -54,9 +48,6 @@ mailApi.get("/v1/mail", async (c) => {
 });
 
 mailApi.get("/v1/mail/:id", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const id = c.req.param("id");
   const row = await c.env.DB.prepare(
     `SELECT id, farm_id, mailbox_id, thread_id, direction, status,

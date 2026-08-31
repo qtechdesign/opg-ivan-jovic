@@ -181,7 +181,7 @@ export async function renderWater(c: Context<AppEnv>) {
       <ul id="zones">${zonesHtml}</ul>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Pokreni (confirm)</h2>
       <p class="dim">Bez confirm → samo prijedlog. Kap po kap blokira kišni lockout; mraz ne.</p>
       <form id="form-run">
@@ -197,7 +197,7 @@ export async function renderWater(c: Context<AppEnv>) {
       </form>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Kišni lockout</h2>
       <p class="dim">Samo za drip. Mraz program (kad dođe M4) nije blokiran.</p>
       <form id="form-lock">

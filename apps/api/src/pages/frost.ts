@@ -7,6 +7,7 @@ import {
   siteNav,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
+import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -21,7 +22,7 @@ export async function renderFrost(c: Context<AppEnv>) {
   }
 
   return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="night" data-wx="clear" id="frost-html">
+<html lang="hr" data-solar="night" data-wx="clear" id="frost-html" data-farm="${escapeHtml(farm.slug)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -51,8 +52,8 @@ export async function renderFrost(c: Context<AppEnv>) {
 </head>
 <body>
   <header>
-    <span class="brand">Polje · OPG Ivan Jović</span>
-    ${SITE_NAV}
+    ${farmBrand(farm.name, farm.slug, defaultSlug)}
+    ${siteNav(farm.slug, defaultSlug)}
     <span class="pip" id="frost-pip">MRAZ · —</span>
   </header>
   <main>
@@ -64,7 +65,7 @@ export async function renderFrost(c: Context<AppEnv>) {
       <div class="metric"><div><span class="n" id="m-rh">—</span><span class="u">% RH</span></div><div class="l">Vlažnost</div></div>
       <div class="metric"><div><span class="n" id="m-dp">—</span><span class="u">°C</span></div><div class="l">Točka rose</div></div>
     </div>
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Program</h2>
       <div class="grid2">
         <div>
@@ -85,7 +86,7 @@ export async function renderFrost(c: Context<AppEnv>) {
       </div>
       <p class="msg" id="msg"></p>
     </section>
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Ventil</h2>
       <div class="grid2">
         <div>
@@ -107,18 +108,14 @@ export async function renderFrost(c: Context<AppEnv>) {
       <h2>Čvorovi</h2>
       <ul id="nodes"><li class="dim">Učitavanje…</li></ul>
     </section>
+    ${OPERATOR_GATE_HTML}
     <footer>Lokalni failsafe. Cloud nije jedini sloj sigurnosti.</footer>
   </main>
   <script>
-    const TOKEN_KEY = "polje_operator_token";
-    function token() { return sessionStorage.getItem(TOKEN_KEY) || ""; }
-    function ensureToken() {
-      let t = token();
-      if (!t) {
-        t = prompt("OPERATOR_TOKEN") || "";
-        if (t) sessionStorage.setItem(TOKEN_KEY, t);
-      }
-      return t;
+    ${FARM_SLUG_JS}
+    ${OPERATOR_SESSION_JS}
+    function jsonHeaders() {
+      return { "Content-Type": "application/json" };
     }
     const elStatus = document.getElementById("frost-status");
     const elPip = document.getElementById("frost-pip");
@@ -137,7 +134,7 @@ export async function renderFrost(c: Context<AppEnv>) {
 
     async function refresh() {
       try {
-        const res = await fetch("/v1/frost/status?farm=ivan-jovic");
+        const res = await fetch("/v1/frost/status?farm=" + encodeURIComponent(FARM));
         const data = await res.json();
         const st = (data.status || "idle").toUpperCase();
         elStatus.textContent = st;
@@ -158,7 +155,7 @@ export async function renderFrost(c: Context<AppEnv>) {
       } catch (e) { console.warn(e); }
 
       try {
-        const res = await fetch("/v1/fps/nodes?farm=ivan-jovic");
+        const res = await fetch("/v1/fps/nodes?farm=" + encodeURIComponent(FARM));
         const data = await res.json();
         const nodes = data.nodes || [];
         if (!nodes.length) {
@@ -174,10 +171,8 @@ export async function renderFrost(c: Context<AppEnv>) {
     }
 
     document.getElementById("btn-load").onclick = async () => {
-      const t = ensureToken();
-      if (!t) return;
       const body = {
-        farm_slug: "ivan-jovic",
+        farm_slug: FARM,
         temp_threshold_c: Number(document.getElementById("thr").value),
         max_spray_sec: Number(document.getElementById("maxsec").value),
         valve_ids: ["fps-valve-1"],
@@ -186,7 +181,8 @@ export async function renderFrost(c: Context<AppEnv>) {
       };
       const res = await fetch("/v1/fps/program", {
         method: "POST",
-        headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+        credentials: "include",
+        headers: jsonHeaders(),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -195,14 +191,13 @@ export async function renderFrost(c: Context<AppEnv>) {
     };
 
     async function arm(armFlag) {
-      const t = ensureToken();
-      if (!t) return;
       const reason = document.getElementById("reason").value.trim();
       if (!reason) {
         const res = await fetch("/v1/fps/arm", {
           method: "POST",
-          headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
-          body: JSON.stringify({ farm_slug: "ivan-jovic", arm: armFlag, confirm: false }),
+          credentials: "include",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ farm_slug: FARM, arm: armFlag, confirm: false }),
         });
         const data = await res.json();
         setMsg(elMsg, data.hint || JSON.stringify(data), false);
@@ -210,8 +205,9 @@ export async function renderFrost(c: Context<AppEnv>) {
       }
       const res = await fetch("/v1/fps/arm", {
         method: "POST",
-        headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
-        body: JSON.stringify({ farm_slug: "ivan-jovic", arm: armFlag, confirm: true, reason }),
+        credentials: "include",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ farm_slug: FARM, arm: armFlag, confirm: true, reason }),
       });
       const data = await res.json();
       setMsg(elMsg, res.ok ? (armFlag ? "ARMED" : "DISARMED") : (data.error || "greška"), !res.ok);
@@ -221,11 +217,10 @@ export async function renderFrost(c: Context<AppEnv>) {
     document.getElementById("btn-disarm").onclick = () => arm(false);
 
     document.getElementById("btn-valve-propose").onclick = async () => {
-      const t = ensureToken();
-      if (!t) return;
       const res = await fetch("/v1/fps/valves/fps-valve-1/open", {
         method: "POST",
-        headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+        credentials: "include",
+        headers: jsonHeaders(),
         body: JSON.stringify({
           max_sec: Number(document.getElementById("valve-sec").value),
           reason: document.getElementById("valve-reason").value || "test",
@@ -237,12 +232,11 @@ export async function renderFrost(c: Context<AppEnv>) {
     };
 
     document.getElementById("btn-valve-open").onclick = async () => {
-      const t = ensureToken();
-      if (!t) return;
       const reason = document.getElementById("valve-reason").value.trim() || "manual open";
       const res = await fetch("/v1/fps/valves/fps-valve-1/open", {
         method: "POST",
-        headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+        credentials: "include",
+        headers: jsonHeaders(),
         body: JSON.stringify({
           max_sec: Number(document.getElementById("valve-sec").value),
           reason,
@@ -255,6 +249,7 @@ export async function renderFrost(c: Context<AppEnv>) {
 
     refresh();
     setInterval(refresh, 10000);
+    opRefreshGate();
   </script>
 </body>
 </html>`);

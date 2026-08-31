@@ -1,14 +1,20 @@
 import type { Context } from "hono";
-import { CHASSIS_CSS, SITE_NAV, escapeHtml } from "../lib/html";
+import {
+  CHASSIS_CSS,
+  escapeHtml,
+  farmBrand,
+  FARM_SLUG_JS,
+  siteNav,
+} from "../lib/html";
+import { farmFromRequest } from "../lib/farm";
+import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
 const ZONE_ID = "f1000000-0000-4000-8000-000000000001";
 
 export async function renderKlima(c: Context<AppEnv>) {
-  const farm = await c.env.DB.prepare(
-    `SELECT id, slug, name FROM farms WHERE slug = 'ivan-jovic'`
-  ).first<{ id: string; slug: string; name: string }>();
+  const { farm, defaultSlug } = await farmFromRequest(c);
 
   if (!farm) {
     return c.html(
@@ -18,7 +24,7 @@ export async function renderKlima(c: Context<AppEnv>) {
   }
 
   return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear">
+<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -41,8 +47,8 @@ export async function renderKlima(c: Context<AppEnv>) {
 </head>
 <body>
   <header>
-    <span class="brand">Polje · OPG Ivan Jović</span>
-    ${SITE_NAV}
+    ${farmBrand(farm.name, farm.slug, defaultSlug)}
+    ${siteNav(farm.slug, defaultSlug)}
     <span class="pip ok">KLIMA</span>
   </header>
   <main>
@@ -60,7 +66,7 @@ export async function renderKlima(c: Context<AppEnv>) {
       <h2>Old house climate</h2>
       <p class="dim" id="zone-line">Učitavanje…</p>
       <p class="lock" id="lock-line"></p>
-      <form id="form-set">
+      <form id="form-set" class="admin-only">
         <div class="grid2">
           <div>
             <label for="heat_c">Grijanje °C (5–28)</label>
@@ -93,39 +99,22 @@ export async function renderKlima(c: Context<AppEnv>) {
       </table>
     </section>
 
-    <section class="panel">
-      <h2>Operator token</h2>
-      <p class="dim">Samo lokalno (sessionStorage). Potrebno za setpoint.</p>
-      <label for="token">Token</label>
-      <input id="token" type="password" autocomplete="off" />
-      <div class="actions">
-        <button type="button" class="btn-ghost" id="save-token">Spremi</button>
-      </div>
-    </section>
+    ${OPERATOR_GATE_HTML}
 
     <footer>Cloud predlaže. Edge drži timeout i battery lockout.</footer>
   </main>
   <script>
+    ${FARM_SLUG_JS}
+    ${OPERATOR_SESSION_JS}
     const ZONE = ${JSON.stringify(ZONE_ID)};
-    const tokenEl = document.getElementById("token");
-    tokenEl.value = sessionStorage.getItem("polje_operator") || "";
-    document.getElementById("save-token").onclick = () => {
-      sessionStorage.setItem("polje_operator", tokenEl.value);
-    };
-    function authHeaders() {
-      const t = sessionStorage.getItem("polje_operator") || "";
-      const h = { "Content-Type": "application/json" };
-      if (t) h.Authorization = "Bearer " + t;
-      return h;
-    }
     function fmt(n, d) {
       if (n == null || Number.isNaN(n)) return "—";
       return Number(n).toFixed(d);
     }
     async function refresh() {
       const [cRes, eRes] = await Promise.all([
-        fetch("/v1/climate/now?farm=ivan-jovic"),
-        fetch("/v1/energy/now?farm=ivan-jovic"),
+        fetch("/v1/climate/now?farm=" + encodeURIComponent(FARM)),
+        fetch("/v1/energy/now?farm=" + encodeURIComponent(FARM)),
       ]);
       const climate = await cRes.json();
       const energy = await eRes.json();
@@ -172,7 +161,8 @@ export async function renderKlima(c: Context<AppEnv>) {
       try {
         const res = await fetch("/v1/climate/zones/" + ZONE + "/setpoint", {
           method: "POST",
-          headers: authHeaders(),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         const data = await res.json();
@@ -192,6 +182,7 @@ export async function renderKlima(c: Context<AppEnv>) {
     };
     refresh();
     setInterval(refresh, 15000);
+    opRefreshGate();
   </script>
 </body>
 </html>`);

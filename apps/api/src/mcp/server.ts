@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { TOOL_DEFS, runTool, type ToolContext } from "./tools";
 import { readPoljeResource, STATIC_RESOURCE_URIS } from "./resources";
+import { DEFAULT_FARM_SLUG } from "../lib/farm";
 import { timingSafeEqualString } from "../lib/auth";
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -92,7 +93,7 @@ export function createPoljeMcpServer(ctx: ToolContext): McpServer {
 
   server.registerResource(
     "camera_latest",
-    "polje://farm/ivan-jovic/cameras/{id}/latest",
+    `polje://farm/${DEFAULT_FARM_SLUG}/cameras/{id}/latest`,
     {
       description: "Latest JPEG snapshot for a camera id",
       mimeType: "image/jpeg",
@@ -173,6 +174,7 @@ export function createPoljeMcpHandler(env: Cloudflare.Env) {
     allowedHostnames: [
       "opg-ivanjovic.hr",
       "www.opg-ivanjovic.hr",
+      "polje.quiet-lab-19ab.workers.dev",
       "localhost",
       "127.0.0.1",
     ],

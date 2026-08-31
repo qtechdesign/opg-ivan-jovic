@@ -11,11 +11,12 @@ const HARD_CAP_SEC = 3600;
  *   poljeApi: string,
  *   ingestToken: string,
  *   mqttPublish: (topic: string, payload: string) => void,
+ *   sqlite?: import("node:sqlite").DatabaseSync,
  *   deviceIds?: string[],
  * }} opts
  */
 export function createActuatorController(opts) {
-  const { farmId, poljeApi, ingestToken, mqttPublish } = opts;
+  const { farmId, poljeApi, ingestToken, mqttPublish, sqlite } = opts;
   /** @type {string[]} */
   let deviceIds = opts.deviceIds || [
     "valve-garden-drip",
@@ -23,10 +24,51 @@ export function createActuatorController(opts) {
   ];
   /** @type {Map<string, ReturnType<typeof setTimeout>>} */
   const timers = new Map();
-  /** @type {Map<string, { slot: string, at: number }>} */
-  const localScheduleFired = new Map();
+  /** @type {Set<string>} */
+  const firedMemory = new Set();
   /** @type {unknown[]} */
   let schedulesCache = [];
+
+  if (sqlite) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS irrigation_schedules_cache (
+        id TEXT PRIMARY KEY,
+        zone_id TEXT,
+        device_id TEXT,
+        time_local TEXT,
+        days_json TEXT,
+        duration_sec INTEGER,
+        timezone TEXT,
+        enabled INTEGER,
+        payload_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS irrigation_schedule_fired (
+        schedule_id TEXT NOT NULL,
+        slot TEXT NOT NULL,
+        fired_at TEXT NOT NULL,
+        PRIMARY KEY (schedule_id, slot)
+      );
+      CREATE TABLE IF NOT EXISTS irrigation_offline_reports (
+        id TEXT PRIMARY KEY,
+        zone_id TEXT NOT NULL,
+        device_id TEXT,
+        schedule_id TEXT,
+        duration_sec INTEGER NOT NULL,
+        started_at TEXT NOT NULL,
+        reason TEXT,
+        flushed INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+    try {
+      const rows = sqlite
+        .prepare(`SELECT payload_json FROM irrigation_schedules_cache WHERE enabled = 1`)
+        .all();
+      schedulesCache = rows.map((r) => JSON.parse(r.payload_json));
+    } catch {
+      /* empty cache */
+    }
+  }
 
   function cmndTopic(deviceId) {
     return `polje/${farmId}/dev/${deviceId}/cmnd`;
@@ -149,16 +191,54 @@ export function createActuatorController(opts) {
       if (!res.ok) return;
       const data = await res.json();
       schedulesCache = data.schedules || [];
+      if (sqlite) {
+        const now = new Date().toISOString();
+        sqlite.exec(`DELETE FROM irrigation_schedules_cache`);
+        const ins = sqlite.prepare(
+          `INSERT INTO irrigation_schedules_cache
+             (id, zone_id, device_id, time_local, days_json, duration_sec, timezone, enabled, payload_json, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        );
+        for (const s of schedulesCache) {
+          ins.run(
+            s.id,
+            s.zone_id || "",
+            s.device_id || "",
+            s.time_local || "",
+            s.days_json || "[]",
+            Number(s.duration_sec) || 600,
+            s.timezone || "Europe/Zagreb",
+            s.enabled ? 1 : 0,
+            JSON.stringify(s),
+            now
+          );
+        }
+      }
     } catch (err) {
       console.warn("schedule poll", err.message || err);
+      if (sqlite && schedulesCache.length === 0) {
+        try {
+          const rows = sqlite
+            .prepare(`SELECT payload_json FROM irrigation_schedules_cache WHERE enabled = 1`)
+            .all();
+          schedulesCache = rows.map((r) => JSON.parse(r.payload_json));
+        } catch {
+          /* keep empty */
+        }
+      }
     }
   }
 
   /**
-   * Local schedule tick — runs even if WAN is down (uses last cached schedules).
-   * When WAN is up, prefers cloud-created commands (dedupe via poll).
+   * Local schedule tick — Edge is write-leader.
+   * Due window fires MQTT even if WAN is up (unless this valve is already ON).
+   * Cloud Cron is backup only. Offline fires are reported when WAN returns.
    */
   async function tickSchedules(wanUp) {
+    if (wanUp) {
+      await flushReports();
+      await pollCommands();
+    }
     const now = new Date();
     for (const s of schedulesCache) {
       if (!s || !s.enabled) continue;
@@ -166,41 +246,141 @@ export function createActuatorController(opts) {
         continue;
       }
       const slot = `${s.id}:${dayKey(now, s.timezone || "Europe/Zagreb")}:${s.time_local}`;
-      const prev = localScheduleFired.get(s.id);
-      if (prev && prev.slot === slot) continue;
-
-      localScheduleFired.set(s.id, { slot, at: Date.now() });
-
-      if (wanUp) {
-        // Cloud cron may already have inserted a command; poll will pick it up.
-        // If no pending command appears, fall through to local MQTT after a short wait.
-        await pollCommands();
+      if (wasFired(s.id, slot)) continue;
+      if (s.device_id && timers.has(s.device_id)) {
+        markFired(s.id, slot);
         continue;
       }
+      fireLocal(s);
+      markFired(s.id, slot);
+    }
+    if (wanUp) await flushReports();
+  }
 
-      // Offline: fire locally with timeout
-      const duration = Math.min(
-        Math.max(Number(s.duration_sec) || 600, 30),
-        HARD_CAP_SEC
-      );
-      const deviceId = s.device_id;
-      if (!deviceId) {
-        // schedule cache may lack device_id — look up from zone via last known
-        console.warn("offline schedule missing device_id", s.id);
-        continue;
+  /**
+   * @param {string} scheduleId
+   * @param {string} slot
+   */
+  function wasFired(scheduleId, slot) {
+    const key = `${scheduleId}:${slot}`;
+    if (firedMemory.has(key)) return true;
+    if (sqlite) {
+      const row = sqlite
+        .prepare(
+          `SELECT slot FROM irrigation_schedule_fired WHERE schedule_id = ? AND slot = ?`
+        )
+        .get(scheduleId, slot);
+      return !!row;
+    }
+    return false;
+  }
+
+  /**
+   * @param {string} scheduleId
+   * @param {string} slot
+   */
+  function markFired(scheduleId, slot) {
+    firedMemory.add(`${scheduleId}:${slot}`);
+    if (sqlite) {
+      sqlite
+        .prepare(
+          `INSERT OR IGNORE INTO irrigation_schedule_fired (schedule_id, slot, fired_at)
+           VALUES (?, ?, ?)`
+        )
+        .run(scheduleId, slot, new Date().toISOString());
+    }
+  }
+
+  /** @param {any} s */
+  function fireLocal(s) {
+    const duration = Math.min(
+      Math.max(Number(s.duration_sec) || 600, 30),
+      HARD_CAP_SEC
+    );
+    const deviceId = s.device_id;
+    if (!deviceId) {
+      console.warn("offline schedule missing device_id", s.id);
+      return;
+    }
+    if (!deviceIds.includes(deviceId)) deviceIds.push(deviceId);
+    const existing = timers.get(deviceId);
+    if (existing) clearTimeout(existing);
+    publishValve(deviceId, true, duration);
+    timers.set(
+      deviceId,
+      setTimeout(() => {
+        publishValve(deviceId, false);
+        timers.delete(deviceId);
+      }, duration * 1000)
+    );
+    queueReport(s, duration);
+    console.log("offline schedule run", s.id, deviceId, duration);
+  }
+
+  /**
+   * @param {any} s
+   * @param {number} duration
+   */
+  function queueReport(s, duration) {
+    if (!sqlite || !s.zone_id) return;
+    try {
+      sqlite
+        .prepare(
+          `INSERT INTO irrigation_offline_reports
+             (id, zone_id, device_id, schedule_id, duration_sec, started_at, reason, flushed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0)`
+        )
+        .run(
+          crypto.randomUUID(),
+          s.zone_id,
+          s.device_id || "",
+          s.id || "",
+          duration,
+          new Date().toISOString(),
+          `schedule ${s.id || "local"}`
+        );
+    } catch (err) {
+      console.warn("queue irrigation report", err.message || err);
+    }
+  }
+
+  async function flushReports() {
+    if (!sqlite || !ingestToken) return;
+    let rows = [];
+    try {
+      rows = sqlite
+        .prepare(`SELECT * FROM irrigation_offline_reports WHERE flushed = 0`)
+        .all();
+    } catch {
+      return;
+    }
+    for (const r of rows) {
+      try {
+        const res = await fetch(`${poljeApi}/v1/ingest/irrigation-run`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ingestToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            farm_id: farmId,
+            zone_id: r.zone_id,
+            duration_sec: r.duration_sec,
+            started_at: r.started_at,
+            reason: r.reason || undefined,
+            schedule_id: r.schedule_id || undefined,
+          }),
+        });
+        if (res.ok) {
+          sqlite
+            .prepare(`UPDATE irrigation_offline_reports SET flushed = 1 WHERE id = ?`)
+            .run(r.id);
+        } else {
+          console.warn("irrigation report http", res.status, r.id);
+        }
+      } catch (err) {
+        console.warn("irrigation report", r.id, err.message || err);
       }
-      if (!deviceIds.includes(deviceId)) deviceIds.push(deviceId);
-      const existing = timers.get(deviceId);
-      if (existing) clearTimeout(existing);
-      publishValve(deviceId, true, duration);
-      timers.set(
-        deviceId,
-        setTimeout(() => {
-          publishValve(deviceId, false);
-          timers.delete(deviceId);
-        }, duration * 1000)
-      );
-      console.log("offline schedule run", s.id, deviceId, duration);
     }
   }
 

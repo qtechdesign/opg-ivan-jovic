@@ -1,18 +1,18 @@
 import { Hono } from "hono";
 import {
   ArmFrostSchema,
+  FrostEventIngestSchema,
   LoadFrostProgramSchema,
   OpenFpsValveSchema,
   type FrostProgram,
 } from "@polje/schema";
-import { requireOperator } from "../lib/auth";
+import { getDriver } from "@polje/drivers";
+import { requireIngest, requireOperator } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
 
 type AppEnv = { Bindings: Cloudflare.Env };
-
-const FPS_NODE_DRIVERS = new Set(["fps-sensor-node", "fps-valve"]);
 
 /** Magnus approximation — dewpoint °C from temp °C and RH %. */
 export function dewpointC(tempC: number, rh: number): number | null {
@@ -61,7 +61,13 @@ fpsApi.get("/v1/fps/nodes", async (c) => {
     for (const m of Object.values(metrics)) {
       if (m.device_id === row.id) last[m.metric] = m.value;
     }
-    return { ...row, metrics: last };
+    const drv = getDriver(row.driver);
+    return {
+      ...row,
+      metrics: last,
+      driver_kind: drv?.kind ?? row.kind,
+      requires_timeout: drv?.requiresTimeout ?? false,
+    };
   });
 
   return c.json({ farm_id: farm.id, slug: farm.slug, nodes });
@@ -407,5 +413,73 @@ fpsApi.post("/v1/fps/valves/:id/open", async (c) => {
   );
 });
 
-// silence unused in case of tree-shake
-void FPS_NODE_DRIVERS;
+fpsApi.post("/v1/frost/events", async (c) => {
+  const denied = await requireIngest(c);
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const parsed = FrostEventIngestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const farm =
+    (await getFarmBySlug(c.env.DB, parsed.data.farm_id)) ||
+    (await c.env.DB.prepare(`SELECT id, slug FROM farms WHERE id = ?`)
+      .bind(parsed.data.farm_id)
+      .first<{ id: string; slug: string }>());
+  if (!farm) {
+    return c.json({ error: "farm_not_found", farm_id: parsed.data.farm_id }, 404);
+  }
+
+  const now = new Date().toISOString();
+  if (parsed.data.type === "frost.spray_start") {
+    await c.env.DB.prepare(
+      `INSERT INTO frost_events (id, farm_id, started_at, ended_at, min_temp_c, mode, water_m3, notes)
+       VALUES (?, ?, ?, NULL, ?, ?, NULL, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         min_temp_c = COALESCE(excluded.min_temp_c, frost_events.min_temp_c),
+         mode = COALESCE(excluded.mode, frost_events.mode),
+         notes = excluded.notes`
+    )
+      .bind(
+        parsed.data.event_id,
+        farm.id,
+        now,
+        parsed.data.temp_c ?? null,
+        parsed.data.mode ?? "ice",
+        parsed.data.reason ?? "frost_auto"
+      )
+      .run();
+  } else {
+    await c.env.DB.prepare(
+      `UPDATE frost_events SET ended_at = ?, notes = COALESCE(?, notes),
+         water_m3 = COALESCE(?, water_m3)
+       WHERE id = ? AND farm_id = ?`
+    )
+      .bind(
+        now,
+        parsed.data.reason ?? null,
+        parsed.data.water_m3 ?? null,
+        parsed.data.event_id,
+        farm.id
+      )
+      .run();
+  }
+
+  await writeAudit(c.env.DB, {
+    farm_id: farm.id,
+    actor: "edge",
+    action: parsed.data.type,
+    entity: `frost_event:${parsed.data.event_id}`,
+    after: parsed.data,
+  });
+
+  return c.json({ ok: true, event_id: parsed.data.event_id }, 201);
+});

@@ -13,12 +13,14 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@polje/schema": ["./packages/schema/src/index.ts"]
+      "@polje/schema": ["./packages/schema/src/index.ts"],
+      "@polje/drivers": ["./packages/drivers/src/index.ts"]
     }
   },
   "include": [
     "apps/api/src/**/*.ts",
     "packages/schema/src/**/*.ts",
+    "packages/drivers/src/**/*.ts",
     "worker-configuration.d.ts"
   ],
   "exclude": ["node_modules", "apps/api/test"]

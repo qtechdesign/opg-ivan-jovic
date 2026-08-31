@@ -103,7 +103,7 @@ climateApi.post("/v1/climate/zones/:id/setpoint", async (c) => {
   if (!result.ok) {
     return c.json(
       { error: result.error, message: result.message },
-      result.status as 400
+      result.status as 400 | 409
     );
   }
   if (result.proposal) {

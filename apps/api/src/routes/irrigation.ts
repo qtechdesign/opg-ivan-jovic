@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import {
+  IngestIrrigationRunSchema,
   PutIrrigationScheduleSchema,
   RainLockoutSchema,
   RunIrrigationSchema,
 } from "@polje/schema";
-import { requireOperator, requireOperatorOrIngest } from "../lib/auth";
+import { requireIngest, requireOperator, requireOperatorOrIngest } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
 
@@ -36,6 +37,234 @@ type RunRow = {
 };
 
 export const irrigationApi = new Hono<AppEnv>();
+
+export type ExecuteIrrigationResult =
+  | {
+      ok: true;
+      proposal: false;
+      run_id: string;
+      command_id: string;
+      zone_id: string;
+      device_id: string;
+      duration_sec: number;
+      status: "sent";
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+      message?: string;
+      proposal?: Record<string, unknown>;
+    };
+
+export async function executeIrrigationRun(
+  db: D1Database,
+  opts: {
+    zoneId: string;
+    duration_sec: number;
+    reason: string;
+    actor: string;
+    source: "ui" | "schedule" | "api";
+  }
+): Promise<ExecuteIrrigationResult> {
+  const zone = await db
+    .prepare(
+      `SELECT id, farm_id, plot_id, name, kind, device_id,
+              max_duration_sec, default_duration_sec, rain_lockout, enabled
+       FROM irrigation_zones WHERE id = ?`
+    )
+    .bind(opts.zoneId)
+    .first<ZoneRow>();
+
+  if (!zone) return { ok: false, error: "zone_not_found", status: 404 };
+  if (!zone.enabled) return { ok: false, error: "zone_disabled", status: 409 };
+
+  const duration_sec = Math.min(opts.duration_sec, zone.max_duration_sec, 3600);
+  if (duration_sec < 30) {
+    return { ok: false, error: "duration_too_short", status: 400, message: "min 30" };
+  }
+
+  const farmRain = await getRainLockout(db, zone.farm_id);
+  if (zone.kind === "drip" && farmRain) {
+    return {
+      ok: false,
+      error: "rain_lockout",
+      status: 409,
+      message:
+        "Drip blocked while farm rain lockout is on. Frost zones are not blocked.",
+    };
+  }
+
+  const cmdId = crypto.randomUUID();
+  const runId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const payload = {
+    zone_id: zone.id,
+    duration_sec,
+    timeout_sec: duration_sec,
+    reason: opts.reason,
+  };
+
+  await db
+    .prepare(
+      `INSERT INTO commands (id, farm_id, device_id, action, payload_json, source, status, confirmed_by, created_at)
+       VALUES (?, ?, ?, 'valve.open', ?, ?, 'sent', ?, ?)`
+    )
+    .bind(
+      cmdId,
+      zone.farm_id,
+      zone.device_id,
+      JSON.stringify(payload),
+      opts.source,
+      opts.actor,
+      now
+    )
+    .run();
+
+  await db
+    .prepare(
+      `INSERT INTO irrigation_runs
+         (id, farm_id, zone_id, started_at, ended_at, duration_sec, source, command_id, status, water_m3, reason)
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'sent', NULL, ?)`
+    )
+    .bind(
+      runId,
+      zone.farm_id,
+      zone.id,
+      now,
+      duration_sec,
+      opts.source,
+      cmdId,
+      opts.reason
+    )
+    .run();
+
+  await writeAudit(db, {
+    farm_id: zone.farm_id,
+    actor: opts.actor,
+    action: "irrigation.run",
+    entity: `zone:${zone.id}`,
+    before: { state: "idle" },
+    after: {
+      run_id: runId,
+      command_id: cmdId,
+      duration_sec,
+      reason: opts.reason,
+      kind: zone.kind,
+      device_id: zone.device_id,
+      source: opts.source,
+    },
+  });
+
+  return {
+    ok: true,
+    proposal: false,
+    run_id: runId,
+    command_id: cmdId,
+    zone_id: zone.id,
+    device_id: zone.device_id,
+    duration_sec,
+    status: "sent",
+  };
+}
+
+/** Edge reports a local (offline) schedule fire so D1 has the ledger row. */
+export async function reportLocalIrrigationRun(
+  db: D1Database,
+  opts: {
+    farmSlugOrId: string;
+    zoneId: string;
+    duration_sec: number;
+    started_at: string;
+    reason?: string;
+    schedule_id?: string;
+  }
+): Promise<
+  | { ok: true; run_id: string; duplicate?: boolean; status: string }
+  | { ok: false; error: string; status: number }
+> {
+  const farm =
+    (await getFarmBySlug(db, opts.farmSlugOrId)) ||
+    (await db
+      .prepare(
+        `SELECT id, slug, name, country, timezone, lat, lon, starlink_site, created_at
+         FROM farms WHERE id = ?`
+      )
+      .bind(opts.farmSlugOrId)
+      .first<{ id: string; slug: string }>());
+
+  if (!farm) return { ok: false, error: "farm_not_found", status: 404 };
+
+  const zone = await db
+    .prepare(
+      `SELECT id, farm_id, name, kind, device_id FROM irrigation_zones WHERE id = ? AND farm_id = ?`
+    )
+    .bind(opts.zoneId, farm.id)
+    .first<Pick<ZoneRow, "id" | "farm_id" | "name" | "kind" | "device_id">>();
+
+  if (!zone) return { ok: false, error: "zone_not_found", status: 404 };
+
+  const startMs = Date.parse(opts.started_at);
+  if (Number.isNaN(startMs)) {
+    return { ok: false, error: "invalid_started_at", status: 400 };
+  }
+
+  const recent = await db
+    .prepare(
+      `SELECT id FROM irrigation_runs
+       WHERE zone_id = ? AND source = 'schedule' AND started_at >= ?
+       LIMIT 1`
+    )
+    .bind(zone.id, new Date(startMs - 60_000).toISOString())
+    .first<{ id: string }>();
+  if (recent) {
+    return { ok: true, run_id: recent.id, duplicate: true, status: "duplicate" };
+  }
+
+  const runId = crypto.randomUUID();
+  const endedAt = startMs + opts.duration_sec * 1000;
+  const done = Date.now() >= endedAt;
+  const status = done ? "done" : "running";
+  const reason = opts.reason ?? `schedule ${opts.schedule_id ?? "local"}`;
+
+  await db
+    .prepare(
+      `INSERT INTO irrigation_runs
+         (id, farm_id, zone_id, started_at, ended_at, duration_sec, source, command_id, status, water_m3, reason)
+       VALUES (?, ?, ?, ?, ?, ?, 'schedule', NULL, ?, NULL, ?)`
+    )
+    .bind(
+      runId,
+      zone.farm_id,
+      zone.id,
+      opts.started_at,
+      done ? new Date(endedAt).toISOString() : null,
+      opts.duration_sec,
+      status,
+      reason
+    )
+    .run();
+
+  await writeAudit(db, {
+    farm_id: zone.farm_id,
+    actor: "edge",
+    action: "irrigation.run",
+    entity: `zone:${zone.id}`,
+    before: { state: "idle", wan: "down" },
+    after: {
+      run_id: runId,
+      duration_sec: opts.duration_sec,
+      reason,
+      kind: zone.kind,
+      device_id: zone.device_id,
+      source: "schedule",
+      reported: true,
+      schedule_id: opts.schedule_id ?? null,
+    },
+  });
+
+  return { ok: true, run_id: runId, status };
+}
 
 async function getRainLockout(db: D1Database, farmId: string): Promise<boolean> {
   const row = await db
@@ -126,13 +355,8 @@ irrigationApi.post("/v1/irrigation/zones/:id/run", async (c) => {
     .first<ZoneRow>();
 
   if (!zone) return c.json({ error: "zone_not_found" }, 404);
-  if (!zone.enabled) return c.json({ error: "zone_disabled" }, 409);
 
   const duration_sec = Math.min(parsed.data.duration_sec, zone.max_duration_sec);
-  if (duration_sec < 30) {
-    return c.json({ error: "duration_too_short", min: 30 }, 400);
-  }
-
   const proposal = {
     proposal: true as const,
     zone_id: zone.id,
@@ -149,71 +373,22 @@ irrigationApi.post("/v1/irrigation/zones/:id/run", async (c) => {
     return c.json(proposal, 200);
   }
 
-  const farmRain = await getRainLockout(c.env.DB, zone.farm_id);
-  if (zone.kind === "drip" && farmRain) {
+  const result = await executeIrrigationRun(c.env.DB, {
+    zoneId: id,
+    duration_sec: parsed.data.duration_sec,
+    reason: parsed.data.reason,
+    actor: "user:operator",
+    source: "ui",
+  });
+
+  if (!result.ok) {
     return c.json(
-      {
-        error: "rain_lockout",
-        message: "Drip blocked while farm rain lockout is on. Frost zones are not blocked.",
-      },
-      409
+      { error: result.error, message: result.message },
+      result.status as 400 | 404 | 409
     );
   }
 
-  const cmdId = crypto.randomUUID();
-  const runId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const payload = {
-    zone_id: zone.id,
-    duration_sec,
-    timeout_sec: duration_sec,
-    reason: parsed.data.reason,
-  };
-
-  await c.env.DB.prepare(
-    `INSERT INTO commands (id, farm_id, device_id, action, payload_json, source, status, confirmed_by, created_at)
-     VALUES (?, ?, ?, 'valve.open', ?, 'ui', 'sent', 'user:operator', ?)`
-  )
-    .bind(cmdId, zone.farm_id, zone.device_id, JSON.stringify(payload), now)
-    .run();
-
-  await c.env.DB.prepare(
-    `INSERT INTO irrigation_runs
-       (id, farm_id, zone_id, started_at, ended_at, duration_sec, source, command_id, status, water_m3, reason)
-     VALUES (?, ?, ?, ?, NULL, ?, 'ui', ?, 'sent', NULL, ?)`
-  )
-    .bind(runId, zone.farm_id, zone.id, now, duration_sec, cmdId, parsed.data.reason)
-    .run();
-
-  await writeAudit(c.env.DB, {
-    farm_id: zone.farm_id,
-    actor: "user:operator",
-    action: "irrigation.run",
-    entity: `zone:${zone.id}`,
-    before: { state: "idle" },
-    after: {
-      run_id: runId,
-      command_id: cmdId,
-      duration_sec,
-      reason: parsed.data.reason,
-      kind: zone.kind,
-      device_id: zone.device_id,
-    },
-  });
-
-  return c.json(
-    {
-      ok: true,
-      proposal: false,
-      run_id: runId,
-      command_id: cmdId,
-      zone_id: zone.id,
-      device_id: zone.device_id,
-      duration_sec,
-      status: "sent",
-    },
-    202
-  );
+  return c.json(result, 202);
 });
 
 irrigationApi.post("/v1/irrigation/rain-lockout", async (c) => {
@@ -293,6 +468,37 @@ irrigationApi.get("/v1/irrigation/schedules", async (c) => {
 
   const { results } = await c.env.DB.prepare(sql).bind(farm.id).all();
   return c.json({ farm_id: farm.id, schedules: results ?? [] });
+});
+
+irrigationApi.post("/v1/ingest/irrigation-run", async (c) => {
+  const denied = await requireIngest(c);
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const parsed = IngestIrrigationRunSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const result = await reportLocalIrrigationRun(c.env.DB, {
+    farmSlugOrId: parsed.data.farm_id,
+    zoneId: parsed.data.zone_id,
+    duration_sec: parsed.data.duration_sec,
+    started_at: parsed.data.started_at,
+    reason: parsed.data.reason,
+    schedule_id: parsed.data.schedule_id,
+  });
+
+  if (!result.ok) {
+    return c.json({ error: result.error }, result.status as 400 | 404);
+  }
+  return c.json(result, result.duplicate ? 200 : 202);
 });
 
 irrigationApi.put("/v1/irrigation/schedules/:id", async (c) => {
@@ -504,49 +710,14 @@ export async function tickIrrigationSchedules(
       .first();
     if (pending) continue;
 
-    const duration_sec = Math.min(s.duration_sec, s.max_duration_sec, 3600);
-    const cmdId = crypto.randomUUID();
-    const runId = crypto.randomUUID();
-    const ts = now.toISOString();
-    const payload = {
-      zone_id: s.zone_id,
-      duration_sec,
-      timeout_sec: duration_sec,
+    const result = await executeIrrigationRun(db, {
+      zoneId: s.zone_id,
+      duration_sec: s.duration_sec,
       reason: `schedule:${s.id}`,
-      schedule_id: s.id,
-    };
-
-    await db
-      .prepare(
-        `INSERT INTO commands (id, farm_id, device_id, action, payload_json, source, status, confirmed_by, created_at)
-         VALUES (?, ?, ?, 'valve.open', ?, 'schedule', 'sent', 'cron', ?)`
-      )
-      .bind(cmdId, farmUuid, s.device_id, JSON.stringify(payload), ts)
-      .run();
-
-    await db
-      .prepare(
-        `INSERT INTO irrigation_runs
-           (id, farm_id, zone_id, started_at, ended_at, duration_sec, source, command_id, status, water_m3, reason)
-         VALUES (?, ?, ?, ?, NULL, ?, 'schedule', ?, 'sent', NULL, ?)`
-      )
-      .bind(runId, farmUuid, s.zone_id, ts, duration_sec, cmdId, `schedule:${s.id}`)
-      .run();
-
-    await writeAudit(db, {
-      farm_id: farmUuid,
       actor: "cron",
-      action: "irrigation.run",
-      entity: `zone:${s.zone_id}`,
-      after: {
-        run_id: runId,
-        command_id: cmdId,
-        schedule_id: s.id,
-        duration_sec,
-        source: "schedule",
-      },
+      source: "schedule",
     });
-    created += 1;
+    if (result.ok) created += 1;
   }
 
   return created;

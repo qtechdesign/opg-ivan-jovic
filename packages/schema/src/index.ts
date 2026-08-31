@@ -147,6 +147,7 @@ export const LocalHealthSchema = z.object({
   mqtt: z.string().optional(),
   gateway: z.string().optional(),
   nvr: z.enum(["ok", "down", "unconfigured"]).optional(),
+  frost: z.enum(["idle", "watch", "armed", "spraying"]).optional(),
   edge_seen_at: z.string().nullable(),
   last_ingest_at: z.string().nullable(),
   last_batch_id: z.string().nullable(),
@@ -205,6 +206,17 @@ export const RainLockoutSchema = z.object({
   confirm: z.boolean().default(false),
 });
 export type RainLockout = z.infer<typeof RainLockoutSchema>;
+
+/** Edge reports a local schedule run after WAN returns (no new command). */
+export const IngestIrrigationRunSchema = z.object({
+  farm_id: z.string().min(1),
+  zone_id: z.string().uuid(),
+  duration_sec: z.number().int().min(30).max(3600),
+  started_at: z.string().min(10).max(40),
+  reason: z.string().min(3).max(500).optional(),
+  schedule_id: z.string().uuid().optional(),
+});
+export type IngestIrrigationRun = z.infer<typeof IngestIrrigationRunSchema>;
 
 export const IrrigationScheduleSchema = z.object({
   id: z.string().uuid(),
@@ -412,7 +424,9 @@ export const EnergyNowSchema = z.object({
   slug: z.string(),
   solar_w: z.number().nullable(),
   kwh_today: z.number().nullable(),
+  kwh_yesterday: z.number().nullable(),
   battery_pct: z.number().nullable(),
+  inverter_id: z.string(),
   loads: z.array(
     z.object({
       id: z.string(),
@@ -481,6 +495,7 @@ export const ProposeAutomationInputSchema = z.object({
   name: z.string().min(1).max(120),
   trigger_json: z.string().min(2).max(5000),
   action_json: z.string().min(2).max(5000),
+  cooldown_sec: z.number().int().min(0).max(86400).default(300),
   farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
 });
 export type ProposeAutomationInput = z.infer<
@@ -821,3 +836,15 @@ export const OpenFpsValveSchema = z.object({
   confirm: z.boolean().default(false),
 });
 export type OpenFpsValve = z.infer<typeof OpenFpsValveSchema>;
+
+export const FrostEventIngestSchema = z.object({
+  farm_id: z.string().min(1),
+  event_id: z.string().min(1).max(64),
+  type: z.enum(["frost.spray_start", "frost.spray_end"]),
+  temp_c: z.number().optional(),
+  rh: z.number().optional(),
+  mode: z.enum(["ice", "fog"]).optional(),
+  reason: z.string().max(500).optional(),
+  water_m3: z.number().nonnegative().optional(),
+});
+export type FrostEventIngest = z.infer<typeof FrostEventIngestSchema>;

@@ -84,7 +84,7 @@ export async function renderMail(c: Context<AppEnv>) {
 
     <section class="panel">
       <h2>Poruke</h2>
-      <ul class="msg-list" id="list"><li class="locked">Prijavi se da vidiš poruke.</li></ul>
+      <ul class="msg-list" id="list"><li class="dim">Učitavanje…</li></ul>
     </section>
 
     <section class="panel" id="detail-panel" hidden>
@@ -94,7 +94,7 @@ export async function renderMail(c: Context<AppEnv>) {
       <ul id="detail-att"></ul>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-only">
       <h2>Pošalji (confirm)</h2>
       <p class="dim">From uvijek ${escapeHtml(AGENT_MAILBOX_ADDRESS)}. Treba confirm + razlog — agent kasnije koristi isti path.</p>
       <form id="form-send">
@@ -117,7 +117,6 @@ export async function renderMail(c: Context<AppEnv>) {
   <script>
     ${FARM_SLUG_JS}
     ${OPERATOR_SESSION_JS}
-    window.poljeOnLogin = () => loadAll();
 
     function setMsg(el, text, err) {
       el.textContent = text || "";
@@ -155,10 +154,6 @@ export async function renderMail(c: Context<AppEnv>) {
           fetch("/v1/mail/summary?farm=" + encodeURIComponent(FARM), { credentials: "include" }),
           fetch("/v1/mail?farm=" + encodeURIComponent(FARM), { credentials: "include" })
         ]);
-        if (sumRes.status === 401 || listRes.status === 401) {
-          list.innerHTML = '<li class="locked">Prijavi se da vidiš poruke.</li>';
-          return;
-        }
         if (!sumRes.ok) throw new Error("summary " + sumRes.status);
         const sum = await sumRes.json();
         document.getElementById("n-in").textContent = sum.totals.inbound;
@@ -271,7 +266,8 @@ export async function renderMail(c: Context<AppEnv>) {
         .replace(/"/g, "&quot;");
     }
 
-    opRefreshGate().then((on) => { if (on) loadAll(); });
+    opRefreshGate();
+    loadAll();
   </script>
 </body>
 </html>`);

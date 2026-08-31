@@ -104,7 +104,7 @@ export async function renderHands(c: Context<AppEnv>) {
           ${a.last_fired_at ? `<span class="meta"> · zadnje ${escapeHtml(a.last_fired_at)}</span>` : ""}
           ${a.last_error ? `<span class="meta risk-high"> · ${escapeHtml(a.last_error)}</span>` : ""}
         </span>
-        <span class="actions" style="margin:0">
+        <span class="actions admin-only" style="margin:0">
           <button type="button" class="btn-ghost btn-fire" data-id="${escapeHtml(a.id)}">Pokreni</button>
           ${
             a.enabled
@@ -127,7 +127,7 @@ export async function renderHands(c: Context<AppEnv>) {
           <span class="meta"> · ${escapeHtml(j.status)}</span>
           ${j.reason ? `<span class="meta"> · ${escapeHtml(j.reason)}</span>` : ""}
         </span>
-        <span class="actions" style="margin:0">
+        <span class="actions admin-only" style="margin:0">
           ${
             j.status === "proposed"
               ? `<button type="button" class="btn-alarm btn-job-confirm" data-id="${escapeHtml(j.id)}">Potvrdi</button>
@@ -151,7 +151,7 @@ export async function renderHands(c: Context<AppEnv>) {
           <span class="name">${escapeHtml(p.action)}</span>
           <span class="meta"> · ${escapeHtml(p.device_id)}</span>
         </span>
-        <span class="actions" style="margin:0">
+        <span class="actions admin-only" style="margin:0">
           <button type="button" class="btn-alarm btn-cmd-confirm" data-id="${escapeHtml(p.id)}">Potvrdi</button>
         </span>
       </li>`
@@ -159,7 +159,7 @@ export async function renderHands(c: Context<AppEnv>) {
           .join("");
 
   return c.html(`<!DOCTYPE html>
-<html lang="hr" data-solar="day" data-wx="clear">
+<html lang="hr" data-solar="day" data-wx="clear" data-farm="${escapeHtml(farm.slug)}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -170,8 +170,8 @@ export async function renderHands(c: Context<AppEnv>) {
 </head>
 <body>
   <header>
-    <span class="brand">Polje · OPG Ivan Jović</span>
-    ${SITE_NAV}
+    ${farmBrand(farm.name, farm.slug, defaultSlug)}
+    ${siteNav(farm.slug, defaultSlug)}
     <span class="pip ok">RUKE</span>
   </header>
   <main>
@@ -184,15 +184,18 @@ export async function renderHands(c: Context<AppEnv>) {
       <h2>Automatizacije</h2>
       <p class="dim">High/medium risk se ne uključuje bez confirm:true + razlog. Seed pravila su isključena.</p>
       <ul id="auto-list">${autoHtml}</ul>
+      <div class="admin-only">
       <label for="enable-reason">Razlog (za uključivanje)</label>
       <input id="enable-reason" maxlength="500" placeholder="npr. test rule overnight" />
       <label><input id="enable-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
       <div class="msg" id="auto-msg"></div>
+      </div>
     </section>
 
     <section class="panel">
       <h2>Red poslova (robot / AI)</h2>
       <ul id="job-list">${jobsHtml}</ul>
+      <div class="admin-only">
       <h2 style="margin-top:24px">Novi posao</h2>
       <form id="form-job">
         <label for="job-kind">Vrsta</label>
@@ -208,21 +211,25 @@ export async function renderHands(c: Context<AppEnv>) {
         <div class="actions"><button class="btn-ghost" type="submit">Stvori (proposed)</button></div>
       </form>
       <div class="msg" id="job-msg"></div>
+      </div>
     </section>
 
     <section class="panel">
       <h2>Predložene naredbe</h2>
       <p class="dim">Voda / aktuatori ostaju proposed dok ne potvrdiš. Edge izvršava samo snapshot.take.</p>
       <ul id="cmd-list">${proposedHtml}</ul>
+      <div class="admin-only">
       <label for="cmd-reason">Razlog potvrde</label>
       <input id="cmd-reason" maxlength="500" placeholder="npr. garden dry, run drip 10m" />
       <label><input id="cmd-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
       <div class="msg" id="cmd-msg"></div>
+      </div>
     </section>
 
     <footer>M9 Hands · local failsafe first · cloud predlaže, čovjek potvrđuje metal i vodu</footer>
   </main>
   <script>
+    ${FARM_SLUG_JS}
     ${OPERATOR_SESSION_JS}
 
     function jsonHeaders() {
@@ -290,6 +297,7 @@ export async function renderHands(c: Context<AppEnv>) {
         credentials: "include",
           headers: jsonHeaders(),
         body: JSON.stringify({
+          farm_slug: FARM || undefined,
           kind: document.getElementById("job-kind").value,
           reason: document.getElementById("job-reason").value.trim() || undefined,
         }),

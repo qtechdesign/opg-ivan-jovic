@@ -3,6 +3,10 @@
 
 INGEST_TOKEN=dev-ingest-token-change-me
 OPERATOR_TOKEN=dev-operator-token-change-me
+OPERATOR_EMAIL=info@qtech.hr
+OPERATOR_PASSWORD=change-me-locally
 AGENT_TOKEN=dev-agent-token-change-me
+# Production: npx wrangler secret put AGENT_TOKEN  (generate locally, do not reuse this example)
 # XAI_API_KEY=xai-...
+# Production: npx wrangler secret put XAI_API_KEY
 # OPERATOR_NOTIFY_EMAIL=you@example.com

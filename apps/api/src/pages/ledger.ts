@@ -105,12 +105,12 @@ export async function renderLedger(c: Context<AppEnv>) {
         <thead>
           <tr><th>Mjesec</th><th>Prihod</th><th>Trošak</th><th>Subvencija</th><th>Imovina</th></tr>
         </thead>
-        <tbody id="months"><tr><td colspan="5" class="locked">Prijavi se.</td></tr></tbody>
+        <tbody id="months"><tr><td colspan="5" class="dim">Učitavanje…</td></tr></tbody>
       </table>
       <p class="no-print-hint" id="yield-line"></p>
     </section>
 
-    <section class="panel no-print">
+    <section class="panel no-print admin-only">
       <h2>Nova stavka</h2>
       <form id="form-entry">
         <div class="grid2">
@@ -155,10 +155,10 @@ export async function renderLedger(c: Context<AppEnv>) {
 
     <section class="panel">
       <h2>Stavke</h2>
-      <ul class="msg-list" id="list"><li class="locked">Prijavi se da vidiš knjigu.</li></ul>
+      <ul class="msg-list" id="list"><li class="dim">Učitavanje…</li></ul>
     </section>
 
-    <section class="panel no-print" id="receipt-panel" hidden>
+    <section class="panel no-print admin-only" id="receipt-panel" hidden>
       <h2>Račun / potvrda</h2>
       <p class="dim" id="receipt-meta"></p>
       <form id="form-receipt">
@@ -175,7 +175,6 @@ export async function renderLedger(c: Context<AppEnv>) {
   <script>
     ${FARM_SLUG_JS}
     ${OPERATOR_SESSION_JS}
-    window.poljeOnLogin = () => loadAll();
 
     const KIND_HR = {
       expense: "Trošak",
@@ -213,12 +212,6 @@ export async function renderLedger(c: Context<AppEnv>) {
           fetch("/v1/ledger/summary?farm=" + encodeURIComponent(FARM), { credentials: "include" }),
           fetch("/v1/ledger?farm=" + encodeURIComponent(FARM) + "&limit=100", { credentials: "include" })
         ]);
-        if (sumRes.status === 401 || listRes.status === 401) {
-          list.innerHTML = '<li class="locked">401 — operator token.</li>';
-          document.getElementById("months").innerHTML =
-            '<tr><td colspan="5" class="locked">401</td></tr>';
-          return;
-        }
         if (!sumRes.ok) throw new Error("summary " + sumRes.status);
         const sum = await sumRes.json();
         document.getElementById("n-income").textContent = formatEur(sum.income_cents || 0);
@@ -254,9 +247,9 @@ export async function renderLedger(c: Context<AppEnv>) {
         list.innerHTML = entries.map((e) => {
           const label = KIND_HR[e.kind] || e.kind;
           const receipt = e.receipt_url
-            ? ' <button type="button" class="btn-ghost receipt-open" data-id="' + e.id + '" data-url="' + e.receipt_url + '" style="height:28px;font-size:11px;padding:0 10px">Račun</button>'
-            : ' <button type="button" class="btn-ghost receipt-add" data-id="' + e.id + '" style="height:28px;font-size:11px;padding:0 10px">+ Račun</button>';
-          const del = ' <button type="button" class="btn-ghost entry-del no-print" data-id="' + e.id + '" style="height:28px;font-size:11px;padding:0 10px">Obriši</button>';
+            ? ' <button type="button" class="btn-ghost receipt-open admin-only" data-id="' + e.id + '" data-url="' + e.receipt_url + '" style="height:28px;font-size:11px;padding:0 10px">Račun</button>'
+            : ' <button type="button" class="btn-ghost receipt-add admin-only" data-id="' + e.id + '" style="height:28px;font-size:11px;padding:0 10px">+ Račun</button>';
+          const del = ' <button type="button" class="btn-ghost entry-del no-print admin-only" data-id="' + e.id + '" style="height:28px;font-size:11px;padding:0 10px">Obriši</button>';
           return '<li><div class="row"><span>' +
             '<span class="kind ' + escapeHtml(e.kind) + '">' + escapeHtml(label) + '</span> ' +
             escapeHtml(e.category || "") +
@@ -361,7 +354,8 @@ export async function renderLedger(c: Context<AppEnv>) {
       }
     };
 
-    opRefreshGate().then((on) => { if (on) loadAll(); });
+    opRefreshGate();
+    loadAll();
   </script>
 </body>
 </html>`);

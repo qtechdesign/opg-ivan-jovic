@@ -68,7 +68,6 @@ const frost = createFrostProgram({
     mqttClient.publish(topic, JSON.stringify(payload));
   },
   reportEvent: (event) => {
-    // Surface frost lifecycle as tiny readings / health for cloud
     if (event.type === "frost.spray_start" && event.event_id) {
       pending.push({
         device_id: "fps-gw-1",
@@ -85,6 +84,23 @@ const frost = createFrostProgram({
         ts: new Date().toISOString(),
       });
     }
+    if (!INGEST_TOKEN) return;
+    void fetch(`${POLJE_API}/v1/frost/events`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${INGEST_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        farm_id: FARM_ID,
+        event_id: event.event_id,
+        type: event.type,
+        temp_c: event.temp_c,
+        rh: event.rh,
+        mode: event.mode,
+        reason: event.reason,
+      }),
+    }).catch((err) => console.warn("frost event ingest", err.message || err));
   },
 });
 
@@ -315,6 +331,7 @@ function main() {
     farmId: FARM_ID,
     poljeApi: POLJE_API,
     ingestToken: INGEST_TOKEN,
+    sqlite: outbox.db,
     mqttPublish: (topic, payload) => {
       client.publish(topic, payload, { qos: 1 });
     },

@@ -1,6 +1,7 @@
 import { DEFAULT_FARM_SLUG, defaultFarmSlug, getFarmBySlug } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
 import { defaultLedgerWindow, farmLedgerSummary } from "../routes/ledger";
+import { irrigationOverview } from "../routes/irrigation";
 import { climateNow } from "../lib/climate";
 import { energyNow } from "../lib/energy";
 
@@ -13,7 +14,7 @@ MCP / agent: Bearer AGENT_TOKEN
 Edge ingest: Bearer INGEST_TOKEN
 
 Key routes: /v1/health, /v1/overview, /v1/plots, /v1/plantings, /v1/cameras,
-/v1/ledger, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
+/v1/climate/now, /v1/energy/now, /v1/ledger, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
 
 Full docs: docs/API.md in the repo.
 `;
@@ -25,7 +26,7 @@ const DOCS_SAFETY = `# Polje safety policy
 3. Without confirm → proposal only. Grok chat cannot confirm high-risk actions.
 4. Every write creates an audit event (who / what / why / before / after).
 5. Never put camera RTSP URLs, tokens, bank data, or exact private GPS in prompts or public docs.
-6. Rain lockout applies to drip, never to an armed frost program (when M4/M5 land).
+6. Rain lockout applies to drip, never to frost spray zones.
 `;
 
 export type ResourceResult =
@@ -214,19 +215,36 @@ export async function readPoljeResource(
     return { mimeType: "application/json", text: JSON.stringify(body) };
   }
 
-  if (kind === "irrigation" || kind === "fps") {
-    const moduleMap: Record<string, string> = {
-      energy: "M6",
-      climate: "M6",
-      irrigation: "M5",
-      fps: "M4",
-    };
+  if (kind === "irrigation") {
+    const state = await irrigationOverview(env.DB, farm.id);
     return {
       mimeType: "application/json",
       text: JSON.stringify({
-        module: moduleMap[kind],
-        status: "not_ready",
-        resource: kind,
+        farm_id: farm.id,
+        slug: farm.slug,
+        ...state,
+      }),
+    };
+  }
+
+  if (kind === "fps") {
+    const prog = await env.DB.prepare(
+      `SELECT program_json, status, updated_at FROM frost_programs WHERE farm_id = ?`
+    )
+      .bind(farm.id)
+      .first<{ program_json: string; status: string; updated_at: string }>();
+    const stub = farmStub(env, farm.slug);
+    const liveRes = await stub.fetch(
+      new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
+    );
+    const live = (await liveRes.json()) as { frost?: string };
+    return {
+      mimeType: "application/json",
+      text: JSON.stringify({
+        farm_id: farm.id,
+        slug: farm.slug,
+        status: live.frost || prog?.status || "idle",
+        program_updated_at: prog?.updated_at ?? null,
       }),
     };
   }

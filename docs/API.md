@@ -2,14 +2,15 @@
 
 Base: `https://opg-ivanjovic.hr` (also `www` and `*.workers.dev`).
 
-Auth for writes: Cloudflare secret `OPERATOR_TOKEN`. Browser: login once (`POST /v1/session`) → HttpOnly cookie. API clients: `Authorization: Bearer <OPERATOR_TOKEN>`. The secret never ships in git or the public HTML.
+Auth for writes: Cloudflare secrets. Browser: `/login` (email + password) → HttpOnly cookie. API clients: `Authorization: Bearer <OPERATOR_TOKEN>`. Never commit passwords.
 
 ## Session
 
 | Method | Path | Notes |
 |---|---|---|
+| GET | `/login` | admin login HTML |
 | GET | `/v1/session` | `{ operator: true\|false }` |
-| POST | `/v1/session` | `{ password }` matching `OPERATOR_TOKEN` → Set-Cookie |
+| POST | `/v1/session` | `{ email, password }` → Set-Cookie |
 | DELETE | `/v1/session` | clear cookie |
 
 ## Public
@@ -17,6 +18,7 @@ Auth for writes: Cloudflare secret `OPERATOR_TOKEN`. Browser: login once (`POST 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/v1/health` | liveness |
+| GET | `/v1/farms` | `{ farms: [{ slug, name, timezone }] }` |
 | GET | `/v1/farms/:slug` | farm + plots |
 | GET | `/v1/plots?farm=ivan-jovic` | plot list |
 | GET | `/v1/plantings?farm=ivan-jovic` | plantings + plot_name |
@@ -26,6 +28,7 @@ Auth for writes: Cloudflare secret `OPERATOR_TOKEN`. Browser: login once (`POST 
 | GET | `/land` | land ledger HTML (M1) |
 | GET | `/eyes` | camera stills grid (M3) |
 | GET | `/water` | irrigation zones + run (M5) |
+| GET | `/klima` | climate + energy (M6) |
 | GET | `/hands` | automations + jobs (M9) |
 | GET | `/frost` | FPS frost console (M4) |
 | GET | `/ledger` | money ledger HTML (M7; amounts behind operator token) |
@@ -35,6 +38,8 @@ Auth for writes: Cloudflare secret `OPERATOR_TOKEN`. Browser: login once (`POST 
 | GET | `/v1/fps/gateway?farm=` | gateway device + packets |
 | GET | `/v1/frost/status?farm=` | `idle\|watch\|armed\|spraying` + temp/rh/dewpoint |
 | GET | `/v1/iot/bus?farm=` | mqtt / edge / gateway / nvr / starlink |
+
+HTML pages take optional `?farm=<slug>`. Default is Worker var `DEFAULT_FARM_SLUG` (`ivan-jovic` on this instance). Local seed also applies `demo-opg` (not production). See [`FORK.md`](FORK.md).
 
 ## Operator (Bearer)
 
@@ -90,7 +95,7 @@ See [`docs/FPS.md`](FPS.md).
 
 ## Irrigation (M5)
 
-Drip vs frost zone kinds. Edge is write-leader (`valve.open` → MQTT `cmnd` → local timeout OFF). Without `confirm: true` the API returns a **proposal** only (no command). Rain lockout blocks **drip** only — never frost. Schedules default **disabled** in seed. Cloud Cron (`*/5`) is a backup for enabled schedules; Edge keeps a local tick when WAN is down.
+Drip vs frost zone kinds. Edge is write-leader (`valve.open` → MQTT `cmnd` → local timeout OFF). Without `confirm: true` the API returns a **proposal** only (no command). Rain lockout blocks **drip** only — never frost. Schedules default **disabled** in seed. Cloud Cron (`*/5`) is a backup for enabled schedules; Edge keeps a local tick when WAN is down and reports those runs via ingest when Starlink returns.
 
 | Method | Path | Auth | Body / notes |
 |---|---|---|---|
@@ -99,8 +104,22 @@ Drip vs frost zone kinds. Edge is write-leader (`valve.open` → MQTT `cmnd` →
 | POST | `/v1/irrigation/rain-lockout?farm=` | operator | `{ enabled, reason, confirm? }` |
 | GET | `/v1/irrigation/schedules?farm=&enabled=` | operator or ingest | Edge polls enabled schedules |
 | PUT | `/v1/irrigation/schedules/:id` | operator | enabling requires `confirm` + `reason` |
+| POST | `/v1/ingest/irrigation-run` | ingest | Edge reports a local schedule fire `{ farm_id, zone_id, duration_sec, started_at, schedule_id? }` — no new command |
 
 `GET /v1/overview` includes an `irrigation` summary. Dashboard: `/water` (Voda).
+
+## Climate + energy (M6)
+
+Heating/cooling setpoints for the old house. Solar now (W) and today kWh from `inv-1`. Heat lockout: do not heat if `ups-1` battery &lt; X% (default **30**). Without `confirm: true` the API returns a **proposal** only (no command, no zone write). Edge is write-leader: local heater timeout + battery lockout even if Starlink is down. Cron (`*/5`) settles yesterday’s inverter kWh into `energy_daily`.
+
+| Method | Path | Auth | Body / notes |
+|---|---|---|---|
+| GET | `/v1/climate/now?farm=` | no | zones + live temp/rh/battery + `heat_blocked` |
+| GET | `/v1/energy/now?farm=` | no | `solar_w`, `kwh_today`, `kwh_yesterday`, `battery_pct`, loads |
+| POST | `/v1/climate/zones/:id/setpoint` | operator | `{ heat_c? (5–28), cool_c? (10–35), reason, confirm? }` → proposal or `202` + `setpoint.set` |
+| POST | `/v1/climate/heat-lockout?farm=` | operator | `{ battery_min_pct (5–90), reason, confirm? }` |
+
+Heat while battery is missing or below X → `409 heat_lockout`. `GET /v1/overview` includes `climate` + `energy`. Dashboard: `/klima` (Klima).
 
 ## Automations + jobs (M9)
 
@@ -120,8 +139,10 @@ Rule engine ticks inside `FarmRuntime` (DO alarm every 60s + after ingest). High
 | POST | `/v1/commands` | operator | create; high-risk → `proposed` unless confirm |
 | POST | `/v1/commands/:id/confirm` | operator | `proposed` → `sent` |
 
-Triggers: `schedule` (cron), `metric`, `health`, `manual`.  
+Triggers: `schedule` (cron), `metric` (`for_sec` optional dwell), `health`, `manual`.  
 Actions: `snapshot.take` (low → `sent`), `notify.draft`, `job.enqueue`, `command.propose` (high → `proposed`).
+
+MCP wrap: `propose_automation` (draft), `enable_automation` / `set_actuator` (high-risk; `confirm:true` + reason; Grok chat cannot confirm).
 
 Dashboard: `/hands` (Ruke).
 

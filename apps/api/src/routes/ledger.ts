@@ -157,9 +157,6 @@ function withReceiptUrl(row: LedgerRow) {
 }
 
 ledgerApi.get("/v1/ledger/summary", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
@@ -178,9 +175,6 @@ ledgerApi.get("/v1/ledger/summary", async (c) => {
 });
 
 ledgerApi.get("/v1/ledger", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const slug = farmSlugFromQuery(c);
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
@@ -233,9 +227,6 @@ ledgerApi.get("/v1/ledger", async (c) => {
 });
 
 ledgerApi.get("/v1/ledger/:id", async (c) => {
-  const denied = await requireOperator(c);
-  if (denied) return denied;
-
   const id = c.req.param("id");
   const row = await c.env.DB.prepare(
     `SELECT id, farm_id, ts, kind, category, amount_cents, currency, note, r2_key

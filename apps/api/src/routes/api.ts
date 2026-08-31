@@ -7,7 +7,7 @@ import {
   type Planting,
   type Plot,
 } from "@polje/schema";
-import { requireIngest, requireOperator, requireOperatorOrIngest, isOperator, mintOperatorCookieValue, setOperatorCookieHeader, clearOperatorCookieHeader, requestIsHttps, timingSafeEqualString } from "../lib/auth";
+import { requireIngest, requireOperator, requireOperatorOrIngest, isOperator, mintOperatorCookieValue, setOperatorCookieHeader, clearOperatorCookieHeader, requestIsHttps, loginCredentialsOk } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { defaultFarmSlug, farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
 import { farmStub } from "../do/farm-runtime";
@@ -36,21 +36,22 @@ api.get("/v1/session", async (c) => {
 });
 
 api.post("/v1/session", async (c) => {
-  const expected = c.env.OPERATOR_TOKEN;
-  if (!expected) {
+  const signing = c.env.OPERATOR_TOKEN;
+  if (!signing) {
     return c.json({ error: "operator_token_not_configured" }, 500);
   }
-  let body: { password?: string };
+  let body: { email?: string; password?: string };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "invalid_json" }, 400);
   }
+  const email = String(body.email || "");
   const password = String(body.password || "");
-  if (!(await timingSafeEqualString(password, expected))) {
+  if (!(await loginCredentialsOk(c, email, password))) {
     return c.json({ error: "unauthorized" }, 401);
   }
-  const value = await mintOperatorCookieValue(expected);
+  const value = await mintOperatorCookieValue(signing);
   c.header("Set-Cookie", setOperatorCookieHeader(value, requestIsHttps(c)));
 
   const farm = await getFarmBySlug(c.env.DB, defaultFarmSlug(c.env));
@@ -60,7 +61,7 @@ api.post("/v1/session", async (c) => {
       actor: "user:operator",
       action: "session.login",
       entity: "session",
-      after: { via: "cookie" },
+      after: { via: "cookie", email: email.trim().toLowerCase() },
     });
   }
   return c.json({ ok: true, operator: true });
@@ -925,15 +926,23 @@ api.patch("/v1/commands/:id", async (c) => {
     .run();
 
   if (row.action === "valve.open") {
-    const runStatus =
-      status === "acked" ? "done" : status === "failed" ? "failed" : "cancelled";
-    await c.env.DB.prepare(
-      `UPDATE irrigation_runs
-       SET status = ?, ended_at = COALESCE(ended_at, ?)
-       WHERE command_id = ?`
-    )
-      .bind(runStatus, new Date().toISOString(), id)
-      .run();
+    if (status === "acked") {
+      // Edge ACK means the valve is ON with a local timeout — not finished yet.
+      await c.env.DB.prepare(
+        `UPDATE irrigation_runs SET status = 'running' WHERE command_id = ? AND status = 'sent'`
+      )
+        .bind(id)
+        .run();
+    } else {
+      const runStatus = status === "failed" ? "failed" : "cancelled";
+      await c.env.DB.prepare(
+        `UPDATE irrigation_runs
+         SET status = ?, ended_at = COALESCE(ended_at, ?)
+         WHERE command_id = ?`
+      )
+        .bind(runStatus, new Date().toISOString(), id)
+        .run();
+    }
   }
 
   await writeAudit(c.env.DB, {
