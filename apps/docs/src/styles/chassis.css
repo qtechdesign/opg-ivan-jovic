@@ -197,12 +197,19 @@ html[data-wx="fog"] body::before {
   background: radial-gradient(ellipse 100% 60% at 50% 80%, rgba(200, 210, 220, 0.22), transparent 70%);
 }
 
-.page,
-.header,
-.sidebar-pane,
-.main-frame {
+/* Weather overlay sits behind the docs chrome. Do not set
+   position:relative on header / sidebar-pane / main-frame —
+   Starlight pins those with position:fixed. Overriding it puts
+   the sidebar in document flow and leaves a viewport of blank
+   space above “What is Polje”. */
+.page {
   position: relative;
   z-index: 1;
+}
+
+nav.sidebar {
+  height: 0;
+  overflow: visible;
 }
 
 html[data-solar="day"] .sl-link-button.minimal:hover,
@@ -319,11 +326,12 @@ site-search button,
 
 /* Fill the pane — stop a skinny centered column */
 .content-panel {
-  padding: 16px var(--sl-content-pad-x) 40px;
+  padding: 12px var(--sl-content-pad-x) 8px;
 }
 
 .content-panel + .content-panel {
-  padding-top: 16px;
+  padding-top: 4px;
+  padding-bottom: 40px;
 }
 
 .sl-container {
@@ -620,7 +628,11 @@ starlight-theme-select {
 
 @media (max-width: 719px) {
   .content-panel {
-    padding: 12px 14px 32px;
+    padding: 12px 14px 8px;
+  }
+
+  .content-panel + .content-panel {
+    padding-bottom: 32px;
   }
 
   .sl-markdown-content h1,
