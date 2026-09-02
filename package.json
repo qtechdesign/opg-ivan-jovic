@@ -22,7 +22,8 @@
     "docs:build": "npm run build -w polje-docs",
     "docs:deploy": "npm run deploy -w polje-docs",
     "og:imagine": "node scripts/og-imagine.mjs",
-    "hero:imagine": "node scripts/hero-imagine.mjs"
+    "hero:imagine": "node scripts/hero-imagine.mjs",
+    "dns:aid": "node scripts/publish-dns-aid.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",

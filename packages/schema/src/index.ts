@@ -9,6 +9,9 @@ export const FarmSchema = z.object({
   lat: z.number().nullable().optional(),
   lon: z.number().nullable().optional(),
   starlink_site: z.string().nullable().optional(),
+  extent_json: z.string().nullable().optional(),
+  extent_name: z.string().nullable().optional(),
+  extent_ha: z.number().nullable().optional(),
   created_at: z.string(),
 });
 
@@ -21,9 +24,23 @@ export const PlotSchema = z.object({
   hectares: z.number().nullable().optional(),
   use_type: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  geom_json: z.string().nullable().optional(),
+  holding_id: z.string().uuid().nullable().optional(),
 });
 
 export type Plot = z.infer<typeof PlotSchema>;
+
+export const HoldingSchema = z.object({
+  id: z.string().uuid(),
+  farm_id: z.string().uuid(),
+  name: z.string().min(1),
+  notes: z.string().nullable().optional(),
+  geom_json: z.string().nullable().optional(),
+  hectares: z.number().nullable().optional(),
+  created_at: z.string(),
+});
+
+export type Holding = z.infer<typeof HoldingSchema>;
 
 export const PlantingStageSchema = z.enum([
   "planned",
@@ -54,9 +71,66 @@ export const CreatePlotSchema = z.object({
   hectares: z.number().positive().nullable().optional(),
   use_type: z.string().max(64).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  geom_json: z.string().max(50_000).nullable().optional(),
+  holding_id: z.string().uuid().nullable().optional(),
 });
 
 export type CreatePlot = z.infer<typeof CreatePlotSchema>;
+
+export const PatchPlotSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    hectares: z.number().positive().nullable().optional(),
+    use_type: z.string().max(64).nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    geom_json: z.string().max(50_000).nullable().optional(),
+    holding_id: z.string().uuid().nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "at least one field required",
+  });
+
+export type PatchPlot = z.infer<typeof PatchPlotSchema>;
+
+export const PatchFarmExtentSchema = z.object({
+  extent_json: z.string().max(50_000).nullable(),
+  extent_name: z.string().min(1).max(120).nullable().optional(),
+});
+
+export const CreateHoldingSchema = z.object({
+  farm_slug: z.string().min(1).default("ivan-jovic"),
+  name: z.string().min(1).max(120),
+  notes: z.string().max(2000).nullable().optional(),
+  geom_json: z.string().max(50_000).nullable().optional(),
+});
+
+export type CreateHolding = z.infer<typeof CreateHoldingSchema>;
+
+export const PatchHoldingSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    geom_json: z.string().max(50_000).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: "at least one field required",
+  });
+
+export type PatchHolding = z.infer<typeof PatchHoldingSchema>;
+
+export const DeleteHoldingSchema = z.object({
+  confirm: z.literal(true),
+});
+
+export type DeleteHolding = z.infer<typeof DeleteHoldingSchema>;
+
+export type PatchFarmExtent = z.infer<typeof PatchFarmExtentSchema>;
+
+export const DeletePlotSchema = z.object({
+  confirm: z.literal(true),
+});
+
+export type DeletePlot = z.infer<typeof DeletePlotSchema>;
 
 export const CreatePlantingSchema = z.object({
   plot_id: z.string().uuid(),
@@ -206,6 +280,26 @@ export const RainLockoutSchema = z.object({
   confirm: z.boolean().default(false),
 });
 export type RainLockout = z.infer<typeof RainLockoutSchema>;
+
+export const PatchWaterPondSchema = z.object({
+  depth_m: z.number().min(0.4).max(8).optional(),
+  bank_slope: z.number().min(1).max(6).optional(),
+  catchment_factor: z.number().min(1).max(40).optional(),
+});
+export type PatchWaterPond = z.infer<typeof PatchWaterPondSchema>;
+
+/** Pump / pack design params. Not an actuator — no confirm. */
+export const PatchWaterPumpSchema = z
+  .object({
+    main_flow_m3h: z.number().min(0.5).max(200).optional(),
+    cycles_per_day: z.number().int().min(1).max(4).optional(),
+    well_rate_m3h: z.number().min(0).max(80).optional(),
+    water_price_cents: z.number().int().min(0).max(5000).optional(),
+  })
+  .refine((o) => Object.values(o).some((v) => v !== undefined), {
+    message: "at least one field",
+  });
+export type PatchWaterPump = z.infer<typeof PatchWaterPumpSchema>;
 
 /** Edge reports a local schedule run after WAN returns (no new command). */
 export const IngestIrrigationRunSchema = z.object({
@@ -882,3 +976,57 @@ export const FrostEventIngestSchema = z.object({
   water_m3: z.number().nonnegative().optional(),
 });
 export type FrostEventIngest = z.infer<typeof FrostEventIngestSchema>;
+
+// —— Plan board (phases + todos + procurement) ——
+
+export const IsoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "ISO date YYYY-MM-DD");
+
+export const PlanTaskStatusSchema = z.enum(["todo", "doing", "done", "blocked"]);
+export type PlanTaskStatus = z.infer<typeof PlanTaskStatusSchema>;
+
+export const PlanOrderStatusSchema = z.enum([
+  "research",
+  "quoted",
+  "ordered",
+  "received",
+  "cancelled",
+]);
+export type PlanOrderStatus = z.infer<typeof PlanOrderStatusSchema>;
+
+export const GetPlanInputSchema = z.object({
+  farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
+});
+export type GetPlanInput = z.infer<typeof GetPlanInputSchema>;
+
+export const ProposePlanTaskInputSchema = z.object({
+  farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
+  title: z.string().min(2).max(200),
+  body: z.string().max(2000).optional(),
+  phase_id: z.string().uuid().optional(),
+  due_on: IsoDateSchema.optional(),
+  status: PlanTaskStatusSchema.default("todo"),
+});
+export type ProposePlanTaskInput = z.infer<typeof ProposePlanTaskInputSchema>;
+
+export const ProposePlanOrderInputSchema = z.object({
+  farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
+  title: z.string().min(2).max(200),
+  vendor: z.string().max(120).optional(),
+  url: z.string().max(2000).optional(),
+  qty: z.number().positive().max(1_000_000).default(1),
+  amount_eur: z.number().min(0).max(10_000_000).optional(),
+  phase_id: z.string().uuid().optional(),
+  due_on: IsoDateSchema.optional(),
+  notes: z.string().max(2000).optional(),
+});
+export type ProposePlanOrderInput = z.infer<typeof ProposePlanOrderInputSchema>;
+
+export const ResearchPriceInputSchema = z.object({
+  farm_slug: z.string().min(1).default(DEFAULT_FARM_SLUG),
+  query: z.string().min(3).max(400),
+  save: z.boolean().default(false),
+  phase_id: z.string().uuid().optional(),
+});
+export type ResearchPriceInput = z.infer<typeof ResearchPriceInputSchema>;

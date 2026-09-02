@@ -7,7 +7,6 @@ import {
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { requireOperatorHtml } from "../lib/auth";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { AGENT_MAILBOX_ADDRESS } from "@polje/schema";
 import { weatherNow } from "../lib/weather";
 
@@ -62,7 +61,6 @@ export async function renderMail(c: Context<AppEnv>) {
     <h1 data-i18n="mail_title">Mail</h1>
     <p class="sub"><span data-i18n="mail_title">Mail</span> · ${escapeHtml(AGENT_MAILBOX_ADDRESS)}</p>
 
-    ${OPERATOR_GATE_HTML}
 
     <div class="metrics">
       <div class="metric"><div class="n" id="n-in">—</div><div class="l">Inbound</div></div>
@@ -105,7 +103,7 @@ export async function renderMail(c: Context<AppEnv>) {
         <label for="send-reason" data-i18n="mail_reason">Reason (audit)</label>
         <input id="send-reason" required minlength="3" maxlength="500" placeholder="e.g. quote reply to contractor" />
         <label><input id="send-confirm" type="checkbox" style="width:auto;margin-right:8px" /> confirm: true</label>
-        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="mail_send_btn">Send</button></div>
+        <div class="actions"><button class="btn-primary" type="submit" data-i18n="mail_send_btn">Send</button></div>
         <div class="msg" id="send-msg"></div>
       </form>
     </section>
@@ -113,7 +111,7 @@ export async function renderMail(c: Context<AppEnv>) {
     <footer>Ledger only · Grok auto-reply is later (M8) · Cloudflare Email Service</footer>
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts()}
   <script>
     function setMsg(el, text, err) {
       el.textContent = text || "";

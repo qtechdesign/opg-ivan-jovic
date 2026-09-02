@@ -9,4 +9,8 @@ AGENT_TOKEN=dev-agent-token-change-me
 # Production: npx wrangler secret put AGENT_TOKEN  (generate locally, do not reuse this example)
 # XAI_API_KEY=xai-...
 # Production: npx wrangler secret put XAI_API_KEY
+# GOOGLE_MAPS_API_KEY=AIza...
+# Production: npx wrangler secret put GOOGLE_MAPS_API_KEY
+# Enable Maps JavaScript API + Places API + Geocoding API.
+# Restrict HTTP referrers: opg-ivanjovic.hr/* , www.opg-ivanjovic.hr/* , 127.0.0.1:8787/*
 # OPERATOR_NOTIFY_EMAIL=you@example.com

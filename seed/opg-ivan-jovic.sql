@@ -238,3 +238,52 @@ INSERT INTO build_phases (id, farm_id, title, body, starts_on, ends_on, amount_c
     70,
     '2026-08-31T00:00:00Z'
   );
+
+DELETE FROM plan_tasks WHERE farm_id = 'a1000000-0000-4000-8000-000000000001';
+INSERT INTO plan_tasks (id, farm_id, phase_id, title, body, status, due_on, sort, created_at, updated_at) VALUES
+  (
+    'e2000000-0000-4000-8000-000000000001',
+    'a1000000-0000-4000-8000-000000000001',
+    'e1000000-0000-4000-8000-000000000002',
+    'Stake yard access',
+    'Mark truck path before civil works.',
+    'doing',
+    '2026-09-15',
+    10,
+    '2026-08-31T00:00:00Z',
+    '2026-08-31T00:00:00Z'
+  ),
+  (
+    'e2000000-0000-4000-8000-000000000002',
+    'a1000000-0000-4000-8000-000000000001',
+    'e1000000-0000-4000-8000-000000000006',
+    'Pond liner quotes',
+    'HDPE research — not a purchase until confirm.',
+    'todo',
+    '2026-10-01',
+    20,
+    '2026-08-31T00:00:00Z',
+    '2026-08-31T00:00:00Z'
+  );
+
+DELETE FROM plan_orders WHERE farm_id = 'a1000000-0000-4000-8000-000000000001';
+INSERT INTO plan_orders (id, farm_id, phase_id, task_id, title, vendor, url, qty, unit_cents, amount_cents, currency, status, due_on, notes, source, created_at, updated_at) VALUES
+  (
+    'e3000000-0000-4000-8000-000000000001',
+    'a1000000-0000-4000-8000-000000000001',
+    'e1000000-0000-4000-8000-000000000006',
+    'e2000000-0000-4000-8000-000000000002',
+    'Pond liner research',
+    NULL,
+    NULL,
+    1,
+    0,
+    0,
+    'EUR',
+    'research',
+    '2026-10-01',
+    'Envelope TBD — agent may fill vendor URLs. Not a quote.',
+    'ui',
+    '2026-08-31T00:00:00Z',
+    '2026-08-31T00:00:00Z'
+  );

@@ -8,11 +8,15 @@ import {
   FpsFrostStatusInputSchema,
   FpsOpenValveInputSchema,
   GetOverviewInputSchema,
+  GetPlanInputSchema,
   IotBusHealthInputSchema,
   ListReadingsInputSchema,
   LogExpenseInputSchema,
   ProposeAutomationInputSchema,
+  ProposePlanOrderInputSchema,
+  ProposePlanTaskInputSchema,
   RequestSnapshotInputSchema,
+  ResearchPriceInputSchema,
   riskForAction,
   RunIrrigationInputSchema,
   SetActuatorInputSchema,
@@ -29,6 +33,14 @@ import type { FarmLiveState } from "../do/farm-runtime";
 import { applyClimateSetpoint } from "../lib/climate";
 import { executeIrrigationRun } from "../routes/irrigation";
 import { dewpointC } from "../routes/fps";
+import {
+  amountFromQuote,
+  insertPlanOrder,
+  insertPlanTask,
+  isoDateOrNull,
+  planBoard,
+} from "../lib/plan";
+import { researchPricesOnline } from "../lib/price-research";
 
 export type ToolActor =
   | "agent:mcp"
@@ -777,6 +789,151 @@ async function askGrokBriefing(
   });
 }
 
+async function getPlan(ctx: ToolContext, input: any): Promise<ToolResult> {
+  const farm = await resolveFarm(ctx.env, input.farm_slug);
+  if (!farm) return { error: "farm_not_found", slug: input.farm_slug };
+  const board = await planBoard(ctx.env.DB, farm.id, farm.timezone);
+  return {
+    farm_id: farm.id,
+    slug: farm.slug,
+    timezone: farm.timezone,
+    ics: `/v1/plan/calendar.ics?farm=${encodeURIComponent(farm.slug)}`,
+    where: board.where,
+    totals: board.totals,
+    order_totals: board.order_totals,
+    phases: board.phases,
+    tasks: board.tasks,
+    orders: board.orders,
+  };
+}
+
+async function proposePlanTask(
+  ctx: ToolContext,
+  input: any
+): Promise<ToolResult> {
+  const farm = await resolveFarm(ctx.env, input.farm_slug);
+  if (!farm) return { error: "farm_not_found", slug: input.farm_slug };
+  const row = await insertPlanTask(ctx.env.DB, {
+    id: crypto.randomUUID(),
+    farm_id: farm.id,
+    phase_id: input.phase_id || null,
+    title: input.title,
+    body: input.body?.trim() ? input.body.trim() : null,
+    status: input.status || "todo",
+    due_on: isoDateOrNull(input.due_on),
+    sort: 0,
+  });
+  await writeAudit(ctx.env.DB, {
+    farm_id: farm.id,
+    actor: ctx.actor,
+    action: "plan.task.create",
+    entity: `task:${row.id}`,
+    after: row,
+  });
+  return { ok: true, task: row };
+}
+
+async function proposePlanOrder(
+  ctx: ToolContext,
+  input: any
+): Promise<ToolResult> {
+  const farm = await resolveFarm(ctx.env, input.farm_slug);
+  if (!farm) return { error: "farm_not_found", slug: input.farm_slug };
+  const money = amountFromQuote({
+    qty: input.qty ?? 1,
+    amount_eur: input.amount_eur,
+  });
+  const url =
+    typeof input.url === "string" && input.url.startsWith("http")
+      ? input.url
+      : null;
+  const row = await insertPlanOrder(ctx.env.DB, {
+    id: crypto.randomUUID(),
+    farm_id: farm.id,
+    phase_id: input.phase_id || null,
+    task_id: null,
+    title: input.title,
+    vendor: input.vendor || null,
+    url,
+    qty: money.qty,
+    unit_cents: money.unit_cents,
+    amount_cents: money.amount_cents,
+    currency: "EUR",
+    status: "research",
+    due_on: isoDateOrNull(input.due_on),
+    notes: input.notes || null,
+    source: ctx.actor.startsWith("agent") ? "grok" : "api",
+  });
+  await writeAudit(ctx.env.DB, {
+    farm_id: farm.id,
+    actor: ctx.actor,
+    action: "plan.order.create",
+    entity: `order:${row.id}`,
+    after: row,
+  });
+  return {
+    ok: true,
+    order: row,
+    message: "Saved as research. Ordered/received needs a human confirm on /plan.",
+  };
+}
+
+async function researchPrice(
+  ctx: ToolContext,
+  input: any
+): Promise<ToolResult> {
+  const farm = await resolveFarm(ctx.env, input.farm_slug);
+  if (!farm) return { error: "farm_not_found", slug: input.farm_slug };
+  if (!ctx.env.XAI_API_KEY) return { error: "xai_not_configured" };
+  let result;
+  try {
+    result = await researchPricesOnline(ctx.env.XAI_API_KEY, input.query);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { error: "research_failed", detail: msg.slice(0, 300) };
+  }
+  const saved = [];
+  if (input.save && result.quotes.length) {
+    for (const q of result.quotes) {
+      const money = amountFromQuote({ qty: 1, amount_eur: q.amount_eur });
+      const row = await insertPlanOrder(ctx.env.DB, {
+        id: crypto.randomUUID(),
+        farm_id: farm.id,
+        phase_id: input.phase_id || null,
+        task_id: null,
+        title: q.title,
+        vendor: q.vendor,
+        url: q.url,
+        qty: 1,
+        unit_cents: money.unit_cents,
+        amount_cents: money.amount_cents,
+        currency: "EUR",
+        status: "research",
+        due_on: null,
+        notes: q.notes,
+        source: "grok",
+      });
+      saved.push(row);
+    }
+    await writeAudit(ctx.env.DB, {
+      farm_id: farm.id,
+      actor: ctx.actor,
+      action: "plan.research.save",
+      entity: `research:${String(input.query).slice(0, 80)}`,
+      after: { query: input.query, saved: saved.length },
+    });
+  }
+  return {
+    ok: true,
+    query: input.query,
+    quotes: result.quotes,
+    saved,
+    model: result.model,
+    message:
+      "Research notes only — not a quote. save=true writes procurement lines as status=research.",
+  };
+}
+
 export const TOOL_DEFS: ToolDef[] = [
   {
     name: "get_overview",
@@ -888,6 +1045,37 @@ export const TOOL_DEFS: ToolDef[] = [
     risk: "low",
     inputSchema: AskGrokBriefingInputSchema,
     execute: askGrokBriefing,
+  },
+  {
+    name: "get_plan",
+    description:
+      "Where the farm is on the build plan: phases, todos, procurement, overdue dates. Amounts are EUR cents envelopes, not quotes.",
+    risk: "low",
+    inputSchema: GetPlanInputSchema,
+    execute: getPlan,
+  },
+  {
+    name: "propose_plan_task",
+    description: "Add a todo on the farm plan (due date optional). Does not spend money.",
+    risk: "low",
+    inputSchema: ProposePlanTaskInputSchema,
+    execute: proposePlanTask,
+  },
+  {
+    name: "propose_plan_order",
+    description:
+      "Add a procurement research line (vendor/url/EUR). Always status=research. Humans confirm ordered on /plan.",
+    risk: "medium",
+    inputSchema: ProposePlanOrderInputSchema,
+    execute: proposePlanOrder,
+  },
+  {
+    name: "research_price",
+    description:
+      "Search the web from the Worker (Grok web_search) for EU/HR shop prices. save=true writes research lines. Not a quote.",
+    risk: "low",
+    inputSchema: ResearchPriceInputSchema,
+    execute: researchPrice,
   },
 ];
 

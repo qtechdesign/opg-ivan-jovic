@@ -10,6 +10,29 @@ export default defineConfig({
         "Farm OS for OPG Ivan Jović — public docs so another family farm can fork the same stack.",
       defaultLocale: "en",
       customCss: ["./src/styles/chassis.css"],
+      components: {
+        SiteTitle: "./src/components/SiteTitle.astro",
+        ThemeProvider: "./src/components/ThemeProvider.astro",
+        ThemeSelect: "./src/components/ThemeSelect.astro",
+      },
+      head: [
+        {
+          tag: "script",
+          attrs: {
+            async: true,
+            src: "https://www.googletagmanager.com/gtag/js?id=G-9VEBFY7JYD",
+          },
+        },
+        {
+          tag: "script",
+          content:
+            "window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-9VEBFY7JYD');",
+        },
+        {
+          tag: "script",
+          content: `document.documentElement.dataset.solar="night";document.documentElement.dataset.wx="clear";(async()=>{try{const r=await fetch("https://opg-ivanjovic.hr/v1/weather/now?farm=ivan-jovic");if(!r.ok)return;const d=await r.json();if(d.solar)document.documentElement.dataset.solar=d.solar;if(d.wx)document.documentElement.dataset.wx=d.wx;}catch(e){}})();`,
+        },
+      ],
       sidebar: [
         {
           label: "Start",

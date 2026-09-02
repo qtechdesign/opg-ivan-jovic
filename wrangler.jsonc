@@ -2,7 +2,7 @@
  * Polje Worker — M0–M10 + mail + ledger + FPS + KV
  *
  * Public: opg-ivanjovic.hr + www.opg-ivanjovic.hr
- * Cron: every 5 min (irrigation schedules + yesterday solar settle + 06:00 Zagreb briefing gate)
+ * Cron: every 5 min (irrigation schedules + yesterday solar settle + analog climate + 06:00 Zagreb briefing gate)
  * KV: flags, farm-row cache, rate limits (session stays HttpOnly cookie)
  */
 {

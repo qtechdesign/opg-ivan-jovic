@@ -10,7 +10,7 @@ import { getDriver } from "@polje/drivers";
 import { requireIngest, requireOperator } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
-import { farmStub } from "../do/farm-runtime";
+import { loadLiveWithAnalog } from "../lib/analog";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -38,13 +38,7 @@ fpsApi.get("/v1/fps/nodes", async (c) => {
     .bind(farm.id)
     .all();
 
-  const stub = farmStub(c.env, farm.slug);
-  const liveRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const live = (await liveRes.json()) as {
-    metrics?: Record<string, { device_id: string; metric: string; value: number; ts: string }>;
-  };
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
   const metrics = live.metrics || {};
 
   const nodes = (devices ?? []).map((d) => {
@@ -85,14 +79,7 @@ fpsApi.get("/v1/fps/gateway", async (c) => {
     .bind(farm.id)
     .first();
 
-  const stub = farmStub(c.env, farm.slug);
-  const liveRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const live = (await liveRes.json()) as {
-    gateway?: string;
-    metrics?: Record<string, { device_id: string; metric: string; value: number }>;
-  };
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
 
   const packets =
     gw && live.metrics
@@ -133,14 +120,7 @@ fpsApi.get("/v1/frost/status", async (c) => {
     }
   }
 
-  const stub = farmStub(c.env, farm.slug);
-  const liveRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const live = (await liveRes.json()) as {
-    frost?: string;
-    metrics?: Record<string, { metric: string; value: number; ts: string; device_id: string }>;
-  };
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
 
   const sensorId = program?.sensor_id || "fps-sn-1";
   const metrics = live.metrics || {};
@@ -186,21 +166,20 @@ fpsApi.get("/v1/iot/bus", async (c) => {
   const farm = await getFarmBySlug(c.env.DB, slug);
   if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
 
-  const stub = farmStub(c.env, farm.slug);
-  const res = await stub.fetch(
-    new Request(`https://do/health?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const health = await res.json();
-  const overviewRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const overview = (await overviewRes.json()) as { frost?: string };
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
 
   return c.json({
     farm_id: farm.id,
     slug: farm.slug,
-    ...(health as object),
-    frost: overview.frost ?? "idle",
+    starlink: live.starlink,
+    edge: live.edge,
+    mqtt: live.mqtt,
+    gateway: live.gateway,
+    nvr: live.nvr,
+    frost: live.frost ?? "idle",
+    edge_seen_at: live.edge_seen_at,
+    last_ingest_at: live.last_ingest_at,
+    last_batch_id: live.last_batch_id,
   });
 });
 

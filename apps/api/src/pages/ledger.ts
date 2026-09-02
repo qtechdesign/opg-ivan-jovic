@@ -6,7 +6,6 @@ import {
   shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
@@ -52,7 +51,7 @@ async function renderLedgerPage(c: Context<AppEnv>) {
   .kind.income { color: var(--leaf); }
   .kind.subsidy { color: var(--hay); }
   .kind.asset { color: var(--soil); }
-  .month-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .month-table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 14px; }
   .month-table th, .month-table td {
     text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--hairline);
     font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -61,6 +60,10 @@ async function renderLedgerPage(c: Context<AppEnv>) {
   .month-table th {
     font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--spectral-dim); font-weight: 500; font-family: inherit;
+  }
+  @media (max-width: 719px) {
+    .month-table { font-size: 12px; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+    .month-table th, .month-table td { padding: 8px 6px; }
   }
   .locked { color: var(--spectral-dim); }
   .receipt-link { font-size: 12px; color: var(--spacex-blue); }
@@ -94,7 +97,6 @@ async function renderLedgerPage(c: Context<AppEnv>) {
     <p class="sub" data-i18n="ledger_sub">OPG operating book · EUR · not a tax filing</p>
     <p class="hint no-print" data-i18n="ledger_howto">Public cash flow of the OPG in EUR cents. Empty until money starts. Not a tax filing. Sign in to add income, expense, subsidy, or asset. Receipt files stay with the operator.</p>
 
-    ${OPERATOR_GATE_HTML}
     <div class="actions no-print" style="margin-bottom:16px">
       <button type="button" class="btn-ghost" id="print-btn" data-i18n="ledger_print">Print</button>
     </div>
@@ -161,7 +163,7 @@ async function renderLedgerPage(c: Context<AppEnv>) {
         </div>
         <label for="note" data-i18n="ledger_note">Note</label>
         <input id="note" maxlength="2000" data-i18n-placeholder="ledger_note_ph" placeholder="e.g. seed for the garden" />
-        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="ledger_save">Save</button></div>
+        <div class="actions"><button class="btn-primary" type="submit" data-i18n="ledger_save">Save</button></div>
         <div class="msg" id="entry-msg"></div>
       </form>
     </section>
@@ -186,7 +188,7 @@ async function renderLedgerPage(c: Context<AppEnv>) {
     <footer>Polje ledger · integer cents EUR · ${escapeHtml(farm.name)}</footer>
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts()}
   <script>
     function kindLabel(kind) {
       const map = {

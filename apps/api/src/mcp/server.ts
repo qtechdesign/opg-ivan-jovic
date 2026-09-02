@@ -4,6 +4,8 @@ import { TOOL_DEFS, runTool, type ToolContext } from "./tools";
 import { readPoljeResource, STATIC_RESOURCE_URIS } from "./resources";
 import { DEFAULT_FARM_SLUG } from "../lib/farm";
 import { timingSafeEqualString } from "../lib/auth";
+import { publicOriginFromHost } from "../lib/public-origin";
+import { wwwAuthenticateBearer } from "../lib/agent-discovery";
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -149,15 +151,22 @@ export async function requireAgentToken(
   }
   const header = request.headers.get("Authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
+  const origin = publicOriginFromHost(
+    request.headers.get("host") ?? undefined
+  );
+  const www = { "WWW-Authenticate": wwwAuthenticateBearer(origin) };
   if (!match) {
     return Response.json(
       { error: "unauthorized", hint: "Bearer AGENT_TOKEN" },
-      { status: 401 }
+      { status: 401, headers: www }
     );
   }
   const ok = await timingSafeEqualString(match[1].trim(), expected);
   if (!ok) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+    return Response.json(
+      { error: "unauthorized" },
+      { status: 401, headers: www }
+    );
   }
   return null;
 }

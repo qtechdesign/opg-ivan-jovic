@@ -134,6 +134,17 @@ export class FarmRuntime extends DurableObject<Env> {
       return Response.json(result, { status: result.duplicate ? 200 : 202 });
     }
 
+    if (url.pathname === "/broadcast" && request.method === "POST") {
+      let body: unknown = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response("bad json", { status: 400 });
+      }
+      this.broadcast(body);
+      return new Response("ok");
+    }
+
     if (url.pathname === "/evaluate" && request.method === "POST") {
       let body: { force_id?: string; force_manual?: boolean } = {};
       try {
@@ -216,12 +227,16 @@ export class FarmRuntime extends DurableObject<Env> {
         )
           .bind(batch.farm_id)
           .first<{ id: string }>());
+      const actor = batch.batch_id.startsWith("analog-")
+        ? "cron:analog"
+        : "edge";
       await this.env.DB.prepare(
         `INSERT INTO audit (farm_id, actor, action, entity, before_json, after_json, ts)
-         VALUES (?, 'edge', 'ingest.batch', ?, NULL, ?, ?)`
+         VALUES (?, ?, 'ingest.batch', ?, NULL, ?, ?)`
       )
         .bind(
           farmRow?.id ?? batch.farm_id,
+          actor,
           `batch:${batch.batch_id}`,
           JSON.stringify({
             batch_id: batch.batch_id,
@@ -316,4 +331,28 @@ export class FarmRuntime extends DurableObject<Env> {
 export function farmStub(env: Env, farmId: string) {
   const id = env.FARM.idFromName(farmId);
   return env.FARM.get(id);
+}
+
+/** Fan-out land geom to `/v1/live` sockets. Writes still go through HTTP + audit. */
+export async function broadcastLand(
+  env: Env,
+  farmUuid: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  try {
+    const farm = await env.DB.prepare(`SELECT slug FROM farms WHERE id = ?`)
+      .bind(farmUuid)
+      .first<{ slug: string }>();
+    if (!farm?.slug) return;
+    const stub = farmStub(env, farm.slug);
+    await stub.fetch(
+      new Request("https://do/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "land", ...payload }),
+      })
+    );
+  } catch {
+    /* live fan-out is best-effort */
+  }
 }

@@ -1,5 +1,7 @@
 import { HTML_LANG, I18N_HEAD_JS, I18N_JS, langToggle } from "./i18n";
 import { brandMarkSvg, FAVICON_LINKS } from "./brand";
+import { OPERATOR_SESSION_JS } from "./operator-ui";
+import { HTML_DISCOVERY_LINKS } from "./agent-discovery";
 
 export function farmQuery(slug: string, defaultSlug: string): string {
   if (!slug || slug === defaultSlug) return "";
@@ -17,6 +19,10 @@ export function farmPath(
 function ico(paths: string): string {
   return `<svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">${paths}</svg>`;
 }
+
+const POLJE_ICO = ico(
+  `<path d="M5 6 H19 a1 1 0 0 1 1 1 V15 a1 1 0 0 1-1 1 H9 l-4 4 V7 a1 1 0 0 1 1-1 Z"/>`
+);
 
 const NAV: Array<{
   path: string;
@@ -138,6 +144,11 @@ export function siteNav(
     const extra = item.external ? ` rel="noreferrer"` : "";
     return `<a href="${url}" class="nav-a"${current}${extra} title="${item.label}">${item.icon}<span data-i18n="${item.key}">${item.label}</span></a>`;
   });
+  items.splice(
+    1,
+    0,
+    `<button type="button" class="nav-a" id="rail-polje" aria-controls="polje-ask" aria-expanded="false" title="Polje">${POLJE_ICO}<span data-i18n="nav_polje">Polje</span></button>`
+  );
   return `<nav class="rail-nav">${items.join("")}</nav>`;
 }
 
@@ -154,10 +165,48 @@ export function farmBrand(
 }
 
 /** Default-tenant nav (ivan-jovic). Prefer siteNav(slug, defaultSlug, path). */
-export const SITE_NAV = siteNav("ivan-jovic", "ivan-jovic");
+export function siteDock(
+  slug: string,
+  defaultSlug: string,
+  currentPath = "/"
+): string {
+  const primary = [NAV[0], NAV[1], NAV[2]];
+  const href = (path: string) => farmPath(path, slug, defaultSlug);
+  const items = primary
+    .map((item) => {
+      const current = item.path === currentPath ? ` aria-current="page"` : "";
+      return `<a href="${href(item.path)}" class="dock-a"${current}>${item.icon}<span data-i18n="${item.key}">${item.label}</span></a>`;
+    })
+    .join("");
+  return `<nav class="dock" id="nav-dock">
+    ${items}
+    <button type="button" class="dock-a" id="dock-polje" aria-controls="polje-ask" aria-expanded="false" title="Polje">
+      ${POLJE_ICO}<span data-i18n="nav_polje">Polje</span>
+    </button>
+    <button type="button" class="dock-a" id="dock-more" aria-controls="nav-rail" aria-expanded="false">
+      ${ico(`<path d="M5 7 H19 M5 12 H19 M5 17 H19"/>`)}<span data-i18n="nav_menu">Menu</span>
+    </button>
+  </nav>`;
+}
 
 export function siteFooter(): string {
   return `<footer><span data-i18n="footer_field">Polje is the field. The field was here first.</span> · <a href="https://docs.opg-ivanjovic.hr" data-i18n="nav_docs">Docs</a> · <a href="/login" data-i18n="nav_admin">Admin</a></footer>`;
+}
+
+export function poljeAskPanel(): string {
+  return `<aside id="polje-ask" class="polje-ask" hidden>
+    <div class="polje-ask-head">
+      <strong data-i18n="nav_polje">Polje</strong>
+      <button type="button" class="btn-ghost" id="polje-ask-close" data-i18n="polje_ask_close">Close</button>
+    </div>
+    <p id="polje-ask-brief" class="polje-ask-brief dim"></p>
+    <pre id="polje-ask-out" class="polje-ask-out" hidden></pre>
+    <div class="polje-ask-row admin-only">
+      <input id="polje-ask-input" type="text" autocomplete="off" data-i18n-placeholder="grok_placeholder" placeholder="Ask Polje…" />
+      <button type="button" class="btn-primary" id="polje-ask-send" data-i18n="grok_send">Send</button>
+    </div>
+    <p class="hint" id="polje-ask-guest" data-i18n="op_off">Viewing is open · sign in only for commands.</p>
+  </aside>`;
 }
 
 export const FARM_SLUG_JS = `const FARM = document.documentElement.getAttribute("data-farm") || "";`;
@@ -207,6 +256,17 @@ export function shareHead(pageUrl: string, title: string, description: string): 
   <link rel="image_src" href="${escapeHtml(image)}" />`;
 }
 
+/** This instance’s GA4. Forks: change or remove — see docs/FORK.md. */
+export const GTAG_MEASUREMENT_ID = "G-9VEBFY7JYD";
+
+export const GTAG_HEAD = `<script async src="https://www.googletagmanager.com/gtag/js?id=${GTAG_MEASUREMENT_ID}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${GTAG_MEASUREMENT_ID}');
+  </script>`;
+
 export const FONT_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />`;
@@ -232,6 +292,9 @@ export function documentStart(opts: {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>${escapeHtml(opts.title)}</title>
   ${FAVICON_LINKS}
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+  ${HTML_DISCOVERY_LINKS}
+  ${GTAG_HEAD}
   ${opts.extraHead ?? ""}
   ${FONT_LINKS}
   ${I18N_HEAD_JS}
@@ -258,30 +321,124 @@ export function pageChrome(opts: {
       <span id="wx-word">—</span>
     </div>
     ${langToggle()}
+    <button type="button" class="btn-ghost topbar-out admin-only" id="op-logout" data-i18n="op_logout">Sign out</button>
     ${opts.pipHtml}
   </header>
   <aside class="nav-rail" id="nav-rail">
     ${siteNav(opts.slug, opts.defaultSlug, opts.currentPath)}
-  </aside>`;
+  </aside>
+  ${siteDock(opts.slug, opts.defaultSlug, opts.currentPath)}
+  ${poljeAskPanel()}`;
 }
 
 export const CHROME_JS = `
     (function () {
       const toggle = document.getElementById("nav-toggle");
+      const more = document.getElementById("dock-more");
       const scrim = document.getElementById("nav-scrim");
+      const ask = document.getElementById("polje-ask");
+      const dockPolje = document.getElementById("dock-polje");
+      const railPolje = document.getElementById("rail-polje");
+      const askClose = document.getElementById("polje-ask-close");
       function setOpen(on) {
         document.body.classList.toggle("nav-open", on);
         if (toggle) toggle.setAttribute("aria-expanded", on ? "true" : "false");
+        if (more) more.setAttribute("aria-expanded", on ? "true" : "false");
         if (scrim) scrim.hidden = !on;
       }
-      if (toggle) {
-        toggle.setAttribute("aria-label", t("nav_menu"));
-        toggle.addEventListener("click", () => setOpen(!document.body.classList.contains("nav-open")));
+      function setAsk(on) {
+        if (!ask) return;
+        ask.hidden = !on;
+        document.body.classList.toggle("ask-open", on);
+        if (dockPolje) dockPolje.setAttribute("aria-expanded", on ? "true" : "false");
+        if (railPolje) railPolje.setAttribute("aria-expanded", on ? "true" : "false");
+        if (on) {
+          setOpen(false);
+          const inp = document.getElementById("polje-ask-input");
+          if (inp && document.body.classList.contains("is-admin")) setTimeout(function () { inp.focus(); }, 50);
+        }
       }
+      function bind(el) {
+        if (!el) return;
+        el.addEventListener("click", () => setOpen(!document.body.classList.contains("nav-open")));
+      }
+      if (toggle) toggle.setAttribute("aria-label", t("nav_menu"));
+      if (more) more.setAttribute("aria-label", t("nav_menu"));
+      bind(toggle);
+      bind(more);
       if (scrim) scrim.addEventListener("click", () => setOpen(false));
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+      if (dockPolje) dockPolje.addEventListener("click", () => setAsk(ask ? ask.hidden : true));
+      if (railPolje) railPolje.addEventListener("click", () => setAsk(ask ? ask.hidden : true));
+      if (askClose) askClose.addEventListener("click", () => setAsk(false));
+      document.querySelectorAll(".rail-nav a").forEach((a) => {
+        a.addEventListener("click", () => setOpen(false));
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          if (ask && !ask.hidden) setAsk(false);
+          else setOpen(false);
+        }
+      });
       document.addEventListener("polje:lang", () => {
         if (toggle) toggle.setAttribute("aria-label", t("nav_menu"));
+        if (more) more.setAttribute("aria-label", t("nav_menu"));
+      });
+    })();
+`.trim();
+
+export const POLJE_ASK_JS = `
+    (function () {
+      const inp = document.getElementById("polje-ask-input");
+      const out = document.getElementById("polje-ask-out");
+      const brief = document.getElementById("polje-ask-brief");
+      const send = document.getElementById("polje-ask-send");
+      if (!brief) return;
+
+      let lastBriefing = null;
+      function showBriefing(d) {
+        lastBriefing = d;
+        if (d && (d.body_en || d.body_hr)) {
+          const body = LANG === "hr" ? (d.body_hr || d.body_en) : (d.body_en || d.body_hr);
+          brief.textContent = body.slice(0, 160) + (body.length > 160 ? "…" : "");
+          brief.title = (d.body_en || "") + "\\n\\n" + (d.body_hr || "");
+        } else {
+          brief.textContent = t("grok_no_briefing");
+        }
+      }
+      fetch("/v1/grok/briefing/today?farm=" + encodeURIComponent(FARM))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { showBriefing(d.briefing || null); })
+        .catch(function () { brief.textContent = ""; });
+      document.addEventListener("polje:lang", function () {
+        if (lastBriefing !== undefined) showBriefing(lastBriefing);
+      });
+
+      if (!inp || !send || !out) return;
+      async function ask() {
+        const message = (inp.value || "").trim();
+        if (!message) return;
+        out.hidden = false;
+        out.textContent = "…";
+        send.disabled = true;
+        try {
+          const res = await fetch("/v1/grok/chat", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ farm_slug: FARM, message })
+          });
+          const data = await res.json();
+          if (res.status === 401) out.textContent = t("grok_login");
+          else if (!res.ok) out.textContent = data.error || ("HTTP " + res.status);
+          else out.textContent = data.reply || t("grok_empty");
+        } catch (e) {
+          out.textContent = String(e);
+        }
+        send.disabled = false;
+      }
+      send.addEventListener("click", ask);
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") ask();
       });
     })();
 `.trim();
@@ -318,12 +475,113 @@ export const WEATHER_JS = `
     })();
 `.trim();
 
+export const WEBMCP_JS = `
+    (function () {
+      var mc = navigator.modelContext;
+      if (!mc || typeof mc.provideContext !== "function") return;
+      function farm() {
+        return document.documentElement.getAttribute("data-farm") || "ivan-jovic";
+      }
+      function jsonGet(path) {
+        return fetch(path).then(function (r) { return r.json(); });
+      }
+      mc.provideContext({
+        tools: [
+          {
+            name: "get_overview",
+            description: "Live Polje farm overview: plots, climate analog, energy, irrigation health.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/overview?farm=" + encodeURIComponent(farm()));
+            }
+          },
+          {
+            name: "get_weather",
+            description: "Current analog weather and solar/wx state for the farm.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/weather/now?farm=" + encodeURIComponent(farm()));
+            }
+          },
+          {
+            name: "list_plots",
+            description: "List land plots (names, hectares, use). No private GPS.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/plots?farm=" + encodeURIComponent(farm()));
+            }
+          },
+          {
+            name: "frost_status",
+            description: "FPS frost watch status and analog temperature.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/frost/status?farm=" + encodeURIComponent(farm()));
+            }
+          },
+          {
+            name: "ledger_summary",
+            description: "Public cash-flow summary in EUR cents.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/ledger/summary?farm=" + encodeURIComponent(farm()));
+            }
+          },
+          {
+            name: "get_plan",
+            description: "Build plan, todos, procurement, and where the farm is.",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            execute: function () {
+              return jsonGet("/v1/plan?farm=" + encodeURIComponent(farm()));
+            }
+          }
+        ]
+      });
+    })();
+`.trim();
+
+export const TRELLO_LIVE_JS = `
+    (function trelloLive() {
+      const host = document.getElementById("trello-live");
+      if (!host) return;
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      }
+      fetch("/v1/trello?farm=" + encodeURIComponent(FARM))
+        .then((r) => r.json())
+        .then((data) => {
+          const lists = (data.board && data.board.lists) || [];
+          const cols = lists.filter((l) => (l.cards || []).length);
+          if (!cols.length) return;
+          host.innerHTML = cols
+            .map((l) => {
+              const cards = (l.cards || [])
+                .slice(0, 12)
+                .map((c) => {
+                  const thumb = c.thumb
+                    ? '<img class="trello-fav" src="' + esc(c.thumb) + '" alt="" width="20" height="14" loading="lazy" referrerpolicy="no-referrer"/>'
+                    : '<span class="trello-fav trello-fav-empty" aria-hidden="true"></span>';
+                  const due = c.due ? '<span class="meta">' + esc(String(c.due).slice(0, 10)) + "</span>" : "";
+                  return '<li class="trello-card">' + thumb + '<a href="' + esc(c.url) + '" rel="noreferrer">' + esc(c.name) + "</a>" + due + "</li>";
+                })
+                .join("");
+              return '<div class="trello-col"><h3>' + esc(l.name) + "</h3><ul>" + cards + "</ul></div>";
+            })
+            .join("");
+        })
+        .catch(() => {});
+    })();
+`.trim();
+
 export function bootScripts(...extra: string[]): string {
   return `<script>
     ${I18N_JS}
     ${FARM_SLUG_JS}
     ${CHROME_JS}
     ${WEATHER_JS}
+    ${OPERATOR_SESSION_JS}
+    ${POLJE_ASK_JS}
+    ${WEBMCP_JS}
     ${extra.join("\n")}
   </script>`;
 }
@@ -390,8 +648,9 @@ export const CHASSIS_CSS = `
   --ice: #7ec8e3;
   --alarm: #c43c2c;
   --spacex-blue: #005288;
-  --rail: 220px;
-  --topbar: 48px;
+  --rail: 232px;
+  --topbar: 52px;
+  --radius: 8px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
@@ -429,21 +688,39 @@ html[data-wx="frost"] {
   --ghost-border: color-mix(in oklab, var(--ice) 40%, transparent);
 }
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+html {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html, body { max-width: 100%; }
 body {
   margin: 0;
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100%;
   min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
   background: var(--void);
   color: var(--spectral);
   font-family: "IBM Plex Sans", "D-DIN", system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.45;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: calc(var(--topbar) + var(--safe-t)) minmax(0, 1fr);
   transition: background-color 900ms ease, color 900ms ease;
 }
+img, video, svg, iframe {
+  max-width: 100%;
+  height: auto;
+}
+iframe { width: 100%; }
+canvas { max-width: 100%; display: block; }
 html[data-solar="night"][data-wx="clear"] body {
   background-image:
     radial-gradient(1px 1px at 12% 22%, rgba(240,240,250,0.28), transparent),
@@ -451,9 +728,77 @@ html[data-solar="night"][data-wx="clear"] body {
     radial-gradient(1px 1px at 42% 68%, rgba(240,240,250,0.16), transparent),
     radial-gradient(1px 1px at 88% 72%, rgba(240,240,250,0.22), transparent);
 }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+html[data-solar="day"][data-wx="clear"] body::before {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 80% 50% at 80% -10%, rgba(255, 210, 120, 0.35), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 10% 110%, rgba(180, 200, 140, 0.25), transparent 50%);
+  animation: sky-drift 48s ease-in-out infinite alternate;
+}
+html[data-solar="day"][data-wx="cloud"] body::before {
+  opacity: 1;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18), transparent 40%),
+    radial-gradient(ellipse 70% 30% at 20% 0%, rgba(255,255,255,0.35), transparent 50%),
+    radial-gradient(ellipse 50% 25% at 80% 8%, rgba(255,255,255,0.28), transparent 50%);
+  animation: sky-drift 36s ease-in-out infinite alternate;
+}
+html[data-solar="dawn"] body::before,
+html[data-solar="dusk"] body::before {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 110%, rgba(200, 90, 40, 0.35), transparent 55%),
+    radial-gradient(ellipse 40% 30% at 90% 0%, rgba(80, 40, 90, 0.25), transparent 50%);
+  animation: sky-drift 40s ease-in-out infinite alternate;
+}
+html[data-wx="frost"] body::before {
+  opacity: 1;
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(180, 230, 255, 0.45), transparent),
+    radial-gradient(1px 1px at 70% 20%, rgba(180, 230, 255, 0.35), transparent),
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(126, 200, 227, 0.12), transparent 60%);
+  animation: frost-shimmer 8s ease-in-out infinite alternate;
+}
+html[data-wx="rain"] body::before {
+  opacity: 1;
+  background: repeating-linear-gradient(
+    -18deg,
+    transparent 0 10px,
+    rgba(180, 200, 220, 0.07) 10px 11px
+  );
+  animation: rain-fall 0.9s linear infinite;
+}
+html[data-wx="fog"] body::before {
+  opacity: 1;
+  background: radial-gradient(ellipse 100% 60% at 50% 80%, rgba(200, 210, 220, 0.22), transparent 70%);
+  animation: sky-drift 28s ease-in-out infinite alternate;
+}
+@keyframes sky-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-2%, 1%, 0) scale(1.04); }
+}
+@keyframes frost-shimmer {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+@keyframes rain-fall {
+  from { background-position: 0 0; }
+  to { background-position: 18px 28px; }
+}
+.workspace { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) {
   body { transition: none; }
   html[data-solar="night"][data-wx="clear"] body { background-image: none; }
+  body::before { animation: none !important; }
 }
 html[data-i18n-pending] body { visibility: hidden; }
 
@@ -462,7 +807,8 @@ html[data-i18n-pending] body { visibility: hidden; }
   grid-row: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
   min-height: var(--topbar);
   padding: var(--safe-t) 12px 0 max(12px, env(safe-area-inset-left, 0px));
   padding-right: max(12px, env(safe-area-inset-right, 0px));
@@ -509,7 +855,13 @@ html[data-i18n-pending] body { visibility: hidden; }
   white-space: nowrap;
 }
 .topbar .lang-toggle { margin-left: auto; }
-.topbar .pip { flex-shrink: 0; }
+.topbar-out {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
 .nav-toggle {
   appearance: none;
   width: 44px;
@@ -554,16 +906,26 @@ html[data-i18n-pending] body { visibility: hidden; }
   top: calc(var(--topbar) + var(--safe-t));
   left: 0;
   bottom: 0;
-  width: min(280px, 86vw);
+  width: min(280px, calc(100% - 24px));
+  max-width: 100%;
   background: var(--void);
   border-right: 1px solid var(--hairline);
   z-index: 50;
   transform: translateX(-105%);
-  transition: transform 180ms ease;
+  transition: transform 180ms ease, visibility 0s linear 180ms;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px 0 calc(16px + var(--safe-b));
+  pointer-events: none;
+  visibility: hidden;
 }
-body.nav-open .nav-rail { transform: translateX(0); }
+body.nav-open { overflow: hidden; }
+body.nav-open .nav-rail {
+  transform: translateX(0);
+  pointer-events: auto;
+  visibility: visible;
+  transition: transform 180ms ease, visibility 0s;
+}
 .rail-nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-a {
   display: flex;
@@ -576,9 +938,20 @@ body.nav-open .nav-rail { transform: translateX(0); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-size: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
 }
+.nav-a[aria-expanded="true"] { color: var(--spectral); background: var(--ghost); }
 .nav-a:hover { color: var(--spectral); background: var(--ghost); }
-.nav-a[aria-current="page"] { color: var(--spectral); }
+.nav-a[aria-current="page"] {
+  color: var(--spectral);
+  background: var(--ghost);
+  box-shadow: inset 3px 0 0 var(--leaf);
+}
 .nav-ico { width: 18px; height: 18px; flex-shrink: 0; }
 .lang-toggle {
   display: inline-flex;
@@ -586,23 +959,29 @@ body.nav-open .nav-rail { transform: translateX(0); }
   border: 1px solid var(--hairline);
   border-radius: 4px;
   overflow: hidden;
-}
-.lang-btn {
   appearance: none;
   background: transparent;
-  border: 0;
-  color: var(--spectral-dim);
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
   font: inherit;
+}
+.lang-side {
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   min-width: 36px;
   min-height: 36px;
   padding: 0 10px;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--spectral-dim);
+  pointer-events: none;
 }
-.lang-btn + .lang-btn { border-left: 1px solid var(--hairline); }
-.lang-btn[aria-pressed="true"] {
+.lang-side + .lang-side { border-left: 1px solid var(--hairline); }
+.lang-toggle[data-lang="en"] .lang-side[data-lang="en"],
+.lang-toggle[data-lang="hr"] .lang-side[data-lang="hr"] {
   background: var(--ghost);
   color: var(--spectral);
 }
@@ -628,6 +1007,8 @@ body.nav-open .nav-rail { transform: translateX(0); }
   grid-row: 2;
   grid-column: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -636,6 +1017,7 @@ main {
   flex: 1;
   width: 100%;
   max-width: 960px;
+  min-width: 0;
   margin: 0 auto;
   padding: 24px 20px calc(32px + var(--safe-b));
 }
@@ -649,13 +1031,16 @@ h1 {
   font-weight: 700;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
-.sub { color: var(--spectral-dim); margin: 0 0 28px; }
+.sub { color: var(--spectral-dim); margin: 0 0 8px; }
+main > .hint { margin-bottom: 22px; max-width: 62ch; }
 .panel {
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 20px;
   background: color-mix(in oklab, var(--void-soft) 82%, transparent);
+  min-width: 0;
+  overflow-x: hidden;
 }
 .panel h2 {
   margin: 0 0 12px;
@@ -691,24 +1076,44 @@ input, textarea, select {
   width: 100%;
   background: var(--void);
   border: 1px solid var(--ghost-border);
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--spectral);
-  padding: 10px 12px;
+  padding: 12px 14px;
   font: inherit;
   font-size: 16px;
 }
+input[type=range] {
+  touch-action: none;
+  max-width: 100%;
+  padding: 8px 0;
+  accent-color: var(--leaf);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
 textarea { min-height: 80px; resize: vertical; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-.check { display: flex; align-items: center; gap: 8px; margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--spectral); }
-.check input { width: auto; margin: 0; }
-.btn-ghost {
-  appearance: none;
-  background: var(--ghost);
-  border: 1px solid var(--ghost-border);
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
   color: var(--spectral);
-  border-radius: 4px;
-  padding: 0 16px;
-  height: 40px;
+  padding: 10px 12px;
+  border: 1px dashed var(--ghost-border);
+  border-radius: var(--radius);
+}
+.check input { width: 18px; height: 18px; margin: 0; }
+.btn-ghost, .btn-primary, .btn-alarm, .btn-ice {
+  appearance: none;
+  border-radius: var(--radius);
+  padding: 0 18px;
+  min-height: 44px;
+  height: 44px;
   font: inherit;
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -718,26 +1123,34 @@ textarea { min-height: 80px; resize: vertical; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--ghost-border);
+}
+.btn-ghost {
+  background: var(--ghost);
+  color: var(--spectral);
 }
 .btn-ghost:hover { background: rgba(240, 240, 250, 0.16); border-color: var(--spectral); }
 html[data-solar="day"] .btn-ghost:hover { background: rgba(16, 18, 24, 0.08); }
-[hidden] { display: none !important; }
-.btn-alarm {
-  appearance: none;
-  background: var(--alarm);
-  border: 1px solid var(--alarm);
-  color: #f0f0fa;
-  border-radius: 4px;
-  padding: 0 16px;
-  height: 40px;
-  font: inherit;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
+.btn-primary {
+  background: var(--leaf);
+  border-color: var(--leaf);
+  color: #f4f7f4;
+  font-weight: 700;
 }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-alarm {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  color: #f0f0fa;
+  font-weight: 700;
+}
+.btn-ice {
+  background: var(--ice);
+  border-color: var(--ice);
+  color: var(--void);
+  font-weight: 700;
+}
+[hidden] { display: none !important; }
 .msg { margin-top: 10px; font-size: 13px; color: var(--leaf); }
 .msg.err { color: var(--alarm); }
 body:not(.is-admin) .admin-only { display: none !important; }
@@ -757,7 +1170,7 @@ footer {
 footer a { color: inherit; text-decoration: none; }
 footer a:hover { color: var(--spectral); }
 a { color: var(--spacex-blue); }
-.nav-a, .pip, .panel h2, label, .metric .l, .metric .u, .btn-ghost, .lang-btn, .nav-toggle {
+.nav-a, .pip, .panel h2, label, .metric .l, .metric .u, .btn-ghost, .lang-toggle, .nav-toggle {
   font-family: "D-DIN", "IBM Plex Sans", system-ui, sans-serif;
 }
 .metrics {
@@ -768,7 +1181,7 @@ a { color: var(--spacex-blue); }
 }
 .metric {
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius);
   padding: 16px;
   background: color-mix(in oklab, var(--void-soft) 82%, transparent);
 }
@@ -848,48 +1261,42 @@ html[data-solar="day"] .hero-scrim {
   margin: 0 0 4px;
 }
 .hero-copy .sub { color: rgba(240,240,250,0.82); margin: 0; font-size: 13px; }
-.grok-dock {
-  position: sticky;
-  bottom: 0;
+.polje-ask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(58px + var(--safe-b));
+  z-index: 46;
+  max-height: min(52dvh, 420px);
+  overflow: auto;
   border-top: 1px solid var(--hairline);
-  background: color-mix(in oklab, var(--void) 92%, transparent);
-  padding: 10px 16px calc(14px + var(--safe-b));
-  z-index: 20;
+  background: color-mix(in oklab, var(--void) 94%, transparent);
+  padding: 12px 14px;
 }
-.grok-bar {
+.polje-ask[hidden] { display: none !important; }
+.polje-ask-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
-  max-width: 1100px;
-  margin: 0 auto;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
-.grok-label {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--spectral-dim);
-}
-.grok-brief {
-  flex: 1 1 160px;
+.polje-ask-brief {
   font-size: 12px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0 0 8px;
 }
-.grok-bar input[type="text"] {
-  width: auto;
-  flex: 1 1 160px;
-  min-width: 120px;
+.polje-ask-row { display: flex; gap: 8px; align-items: center; }
+.polje-ask-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 16px;
   height: 40px;
   padding: 0 10px;
 }
-.grok-bar button { height: 40px; }
-.grok-out {
-  max-width: 1100px;
-  margin: 10px auto 0;
+.polje-ask-out {
+  margin: 0 0 10px;
   padding: 12px;
   border: 1px solid var(--hairline);
   border-radius: 4px;
@@ -897,9 +1304,11 @@ html[data-solar="day"] .hero-scrim {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 13px;
   white-space: pre-wrap;
-  max-height: 220px;
+  max-height: 180px;
   overflow: auto;
 }
+body.is-admin #polje-ask-guest { display: none !important; }
+body:not(.is-admin) #polje-ask-guest { margin: 0; }
 
 .page-home main { padding-top: 12px; padding-bottom: 96px; }
 .page-home .intro {
@@ -993,9 +1402,141 @@ html[data-solar="day"] .hero-scrim {
   color: var(--spectral-dim);
   font-weight: 600;
 }
+.trello-col ul { list-style: none; padding: 0; margin: 0; }
+.trello-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.trello-card:last-child { border-bottom: none; }
+.trello-card a { color: inherit; text-decoration: none; flex: 1; min-width: 0; }
+.trello-card a:hover { text-decoration: underline; }
+.trello-fav {
+  width: 20px;
+  height: 14px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--hairline);
+  flex-shrink: 0;
+  background: var(--void);
+}
+.trello-fav-empty { display: inline-block; }
+.kanban {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.kanban-col {
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 12px;
+  min-height: 80px;
+}
+.kanban-col h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--spectral-dim);
+}
+.kanban-card, .order-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.kanban-card:last-child, .order-row:last-child { border-bottom: none; }
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-cell {
+  min-height: 72px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 11px;
+}
+.cal-cell .d { color: var(--spectral-dim); font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.cal-cell .ev { display: block; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-cell .ev.phase { color: var(--hay); }
+.cal-cell .ev.task { color: var(--ice); }
+.cal-cell .ev.order { color: var(--leaf); }
+.cal-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+@media (min-width: 720px) {
+  .kanban { grid-template-columns: repeat(3, 1fr); }
+}
 .live-stills { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
 .live-stills a { display: block; width: 120px; }
 .live-stills img { width: 100%; aspect-ratio: 16/10; object-fit: cover; border: 1px solid var(--hairline); border-radius: 4px; }
+
+.work-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--void-soft) 70%, transparent);
+  cursor: pointer;
+}
+.work-card:last-child { margin-bottom: 0; }
+.work-card.is-on { border-color: var(--leaf); }
+.work-card .meta { margin-top: 4px; }
+.status-panel .status-big { margin-bottom: 12px; }
+.page-login main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100dvh - var(--topbar) - var(--safe-t) - 80px);
+}
+.page-login .login-box { width: 100%; max-width: 420px; }
+.dock {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 42;
+  background: color-mix(in oklab, var(--void) 94%, transparent);
+  border-top: 1px solid var(--hairline);
+  padding: 4px 4px calc(6px + var(--safe-b));
+  justify-content: space-around;
+  gap: 2px;
+}
+.dock-a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 2px;
+  color: var(--spectral-dim);
+  text-decoration: none;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dock-a[aria-current="page"],
+.dock-a[aria-expanded="true"] { color: var(--spectral); }
+.dock-a .nav-ico { width: 20px; height: 20px; }
+.nav-a, .pip, .panel h2, label, .metric .l, .metric .u, .btn-ghost, .btn-primary, .lang-toggle, .nav-toggle, .dock-a {
+  font-family: "D-DIN", "IBM Plex Sans", system-ui, sans-serif;
+}
 
 @media (min-width: 720px) {
   body {
@@ -1011,6 +1552,8 @@ html[data-solar="day"] .hero-scrim {
     width: 56px;
     transform: none;
     transition: none;
+    pointer-events: auto;
+    visibility: visible;
   }
   .nav-a { justify-content: center; padding: 0; }
   .nav-a span {
@@ -1030,12 +1573,26 @@ html[data-solar="day"] .hero-scrim {
   .guide { grid-template-columns: 1fr 1fr; }
   .phase { grid-template-columns: 140px 1fr auto; align-items: start; }
   .trello-cols { grid-template-columns: repeat(2, 1fr); }
+  .dock { display: none; }
+  .polje-ask {
+    left: 56px;
+    right: auto;
+    top: calc(var(--topbar) + var(--safe-t));
+    bottom: 0;
+    width: min(400px, calc(100vw - 56px));
+    max-height: none;
+    border-top: none;
+    border-right: 1px solid var(--hairline);
+  }
+  .nav-a[aria-current="page"] { box-shadow: none; }
 }
 
 @media (min-width: 1100px) {
   body { grid-template-columns: var(--rail) minmax(0, 1fr); }
   .nav-rail { width: var(--rail); }
+  .polje-ask { left: var(--rail); width: min(400px, calc(100vw - var(--rail))); }
   .nav-a { justify-content: flex-start; padding: 0 16px; }
+  .nav-a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--leaf); }
   .nav-a span {
     position: static;
     width: auto;
@@ -1052,11 +1609,27 @@ html[data-solar="day"] .hero-scrim {
 
 @media (max-width: 719px) {
   .topbar .pip { display: none; }
+  .topbar { gap: 6px; }
+  .brand-text { max-width: 42vw; }
+  .topbar-out { display: none; }
   .hands-row .actions { width: 100%; }
+  main { padding: 16px 12px calc(96px + var(--safe-b)); }
+  .page-home main { padding-bottom: calc(96px + var(--safe-b)); }
+  .panel { padding: 14px; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .metric { padding: 12px; min-width: 0; }
+  .metric .n { overflow-wrap: anywhere; }
+  .work-card { min-width: 0; }
+  .work-card .name { overflow-wrap: anywhere; }
+  li.row { gap: 8px; }
+  .phase .eur { white-space: normal; }
+  .live-stills a { width: calc(50% - 4px); min-width: 0; }
+  .eye-meta { flex-wrap: wrap; }
+  table { max-width: 100%; }
 }
 
 @media print {
-  .nav-rail, .nav-toggle, .nav-scrim, .topbar-live, .grok-dock { display: none !important; }
+  .nav-rail, .nav-toggle, .nav-scrim, .topbar-live, .polje-ask, .dock { display: none !important; }
   body { display: block; grid-template-columns: none; }
   .workspace { display: block; }
 }

@@ -6,7 +6,6 @@ import {
   shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
@@ -175,7 +174,6 @@ export async function renderHands(c: Context<AppEnv>) {
     <p class="sub"><span data-i18n="hands_autos">Automations</span> + job queue · ${escapeHtml(farm.name)}</p>
     <p class="hint" data-i18n="hands_howto">Automations and the job queue. High-risk rules stay off until you enable with confirm + reason. Cloud proposes; you confirm water and metal.</p>
 
-    ${OPERATOR_GATE_HTML}
 
     <section class="panel">
       <h2 data-i18n="hands_autos">Automations</h2>
@@ -205,7 +203,7 @@ export async function renderHands(c: Context<AppEnv>) {
         </select>
         <label for="job-reason" data-i18n="hands_note">Note</label>
         <input id="job-reason" maxlength="500" data-i18n-placeholder="hands_optional" placeholder="optional" />
-        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="hands_create">Create (proposed)</button></div>
+        <div class="actions"><button class="btn-primary" type="submit" data-i18n="hands_create">Create (proposed)</button></div>
       </form>
       <div class="msg" id="job-msg"></div>
       </div>
@@ -226,7 +224,7 @@ export async function renderHands(c: Context<AppEnv>) {
     <footer data-i18n="hands_footer">M9 Hands · local failsafe first · cloud proposes, human confirms metal and water</footer>
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts()}
   <script>
     function jsonHeaders() {
       return { "Content-Type": "application/json" };

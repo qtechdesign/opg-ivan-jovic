@@ -3,8 +3,7 @@ import { HeatLockoutSchema, SetClimateSetpointSchema } from "@polje/schema";
 import { requireOperator } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
 import { farmSlugFromQuery, getFarmBySlug } from "../lib/farm";
-import { farmStub } from "../do/farm-runtime";
-import type { FarmLiveState } from "../do/farm-runtime";
+import { loadLiveWithAnalog } from "../lib/analog";
 import {
   applyClimateSetpoint,
   climateNow,
@@ -22,11 +21,7 @@ async function liveFor(
   env: Cloudflare.Env,
   slug: string
 ): Promise<LiveMetrics> {
-  const stub = farmStub(env, slug);
-  const res = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(slug)}`)
-  );
-  const state = (await res.json()) as FarmLiveState;
+  const state = await loadLiveWithAnalog(env, slug);
   return state.metrics ?? {};
 }
 

@@ -24,7 +24,8 @@ export async function getFarmBySlug(
 ): Promise<Farm | null> {
   return db
     .prepare(
-      `SELECT id, slug, name, country, timezone, lat, lon, starlink_site, created_at
+      `SELECT id, slug, name, country, timezone, lat, lon, starlink_site,
+              extent_json, extent_name, extent_ha, created_at
        FROM farms WHERE slug = ?`
     )
     .bind(slug)

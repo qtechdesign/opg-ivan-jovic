@@ -52,6 +52,7 @@ Transport: Cloudflare Agents SDK `createMcpHandler` (MCP SDK v2, `legacy: "rejec
 | `polje://farm/ivan-jovic/cameras/{id}/latest` | JPEG snapshot |
 | `polje://farm/ivan-jovic/ledger` | P&L + monthly buckets (`?from=` `?to=` UTC) |
 | `polje://farm/ivan-jovic/audit` | recent audit (`?limit=50`) |
+| `polje://farm/ivan-jovic/plan` | phases + todos + procurement + where |
 | `polje://docs/api` | API summary |
 | `polje://docs/safety` | safety policy |
 
@@ -74,6 +75,10 @@ Transport: Cloudflare Agents SDK `createMcpHandler` (MCP SDK v2, `legacy: "rejec
 | `set_actuator` | high | live; `actuator.set` `sent` after confirm (Grok cannot confirm) |
 | `propose_automation` | medium | live draft `enabled=0`; Zod trigger/action + `risk` |
 | `enable_automation` | high | live; confirm + reason (Grok cannot confirm) |
+| `get_plan` | low | live board: phases, todos, procurement, overdue |
+| `propose_plan_task` | low | live todo |
+| `propose_plan_order` | medium | live; always `research` |
+| `research_price` | low | Grok web_search via Worker; `save` writes research lines |
 
 ### Confirm rule
 

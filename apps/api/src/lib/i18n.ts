@@ -18,6 +18,7 @@ const en = {
   nav_docs: "Docs",
   nav_admin: "Admin",
   nav_menu: "Menu",
+  nav_lang: "Language",
   wx_clear: "CLEAR",
   wx_frost: "FROST",
   wx_fog: "FOG",
@@ -37,6 +38,10 @@ const en = {
 
   home_story_ivan: "House from 1923 · hay, garden, family · Croatia",
   home_story_fork: "Template for a fork · Europe/Zagreb",
+  analog_wx_hint:
+    "Live numbers are a climate analog from Čigoč / Lonjsko polje (Open-Meteo) until sensors sit on this land. Not private GPS.",
+  analog_eyes_live: "LIVE analog",
+  analog_lonjsko: "Closer analog: Lonjsko polje stork village (HR)",
   home_metric_soil: "Soil",
   home_water: "Water",
   home_rain_lock: "Rain lockout · {state}",
@@ -48,11 +53,13 @@ const en = {
   home_klima: "Climate",
   home_eyes: "View the farm",
   home_land: "Land",
-  grok_placeholder: "Ask the farm…",
+  grok_placeholder: "Ask Polje…",
   grok_send: "Send",
   grok_no_briefing: "no briefing today",
-  grok_login: "Sign in (Admin) then ask.",
+  grok_login: "Sign in, then ask Polje.",
   grok_empty: "(empty)",
+  nav_polje: "Polje",
+  polje_ask_close: "Close",
 
   home_pitch:
     "Polje is the operating system for this family holding: land, water, frost, climate, cameras, and the book. Cloud is the brain and the ledger. The edge on the farm is the muscle and the failsafe. We rebuild OPG Ivan Jović in public so another farm can fork the same stack.",
@@ -71,9 +78,9 @@ const en = {
   home_how_title: "How to use this console",
   home_guide_water: "Drip and frost valves. Sign in, write why, tick confirm. No confirm = proposal only.",
   home_guide_frost: "Load the local program, then ARM. Edge sprays if the night goes to ice. Cloud is not the safety layer.",
-  home_guide_eyes: "Live cameras: yard, garden, hay. Stills now; stream when the edge has it.",
+  home_guide_eyes: "Analog livestreams now (storks / countryside). Yard, garden, hay cameras when the NVR is on the land.",
   home_guide_land: "Plots and plantings. The land ledger — names, stages, growth photos.",
-  home_guide_plan: "Build phases with time and EUR. Same board the public Trello follows.",
+  home_guide_plan: "Build phases, todos, procurement, and a calendar. Same public Trello, with card pictures.",
   home_guide_ledger: "Public cash flow in cents EUR. Empty until the OPG starts making money. Not a tax filing.",
   home_plan_title: "Build plan",
   home_plan_hint:
@@ -82,7 +89,7 @@ const en = {
   home_trello_title: "Public Trello",
   home_trello_hint: "Follow the same work on the public board. Polje reads lists; writes stay on Trello.",
   home_trello_open: "Open board",
-  home_live_stills: "Live stills",
+  home_live_stills: "Analog live views — not this yard yet",
   home_no_phases: "No phases yet — add them on Plan.",
 
   plan_title: "Plan",
@@ -107,11 +114,34 @@ const en = {
   plan_empty: "No phases yet.",
   plan_totals: "Envelope",
   plan_tbd: "TBD",
+  plan_tasks: "Todos",
+  plan_todo: "Todo",
+  plan_doing: "Doing",
+  plan_task_done: "Done",
+  plan_orders: "Procurement",
+  plan_orders_empty: "No procurement lines yet.",
+  plan_orders_hint:
+    "Research and quotes first. Ordered/received needs confirm. Not a ledger posting until you book it in the book.",
+  plan_cal: "Calendar",
+  plan_ics: "Subscribe (ICS)",
+  plan_big: "Big picture",
+  plan_new_task: "New todo",
+  plan_save_task: "Save todo",
+  plan_due: "Due",
+  plan_phase: "Phase",
+  plan_new_order: "New procurement line",
+  plan_vendor: "Vendor",
+  plan_save_order: "Save line",
+  plan_research: "Price research",
+  plan_research_hint:
+    "Grok searches the web from the Worker. Results are notes — tick save to drop them into procurement as research.",
+  plan_research_q: "What to buy",
+  plan_research_go: "Research",
 
   land_howto:
     "Plots and plantings are the land ledger. Viewing is open. Sign in to add a plot, planting, stage, or growth photo.",
   water_howto:
-    "Viewing is open. Commands need sign-in. Pick a zone, set seconds, write why, tick confirm. Without confirm the cloud only stores a proposal. Rain lockout blocks drip, never an armed frost line. The edge closes the valve on timeout.",
+    "Yearly need comes from the fields on Land. Place a pond on the map, then set depth and banks here. Viewing is open. Commands need sign-in. Rain lockout blocks drip, never an armed frost line.",
   frost_howto:
     "This is FPS LoRa frost protection. Load the program, then ARM with a reason. The local node sprays if temperature drops — Cloudflare is not the safety layer. Open valve also needs confirm.",
   ledger_howto:
@@ -153,9 +183,97 @@ const en = {
   land_planting_saved: "Planting saved · {id}",
   land_updated: "Updated · {stage}",
   land_pick_file: "Choose a file",
+  land_map: "Fields",
+  land_map_howto:
+    "First draw each location you farm (e.g. Sarampovo, then another field). Name it. Then pasture, orchard, hay, pond, equipment only inside that line. Tap a shape: Adjust corners, or Move to drag the whole polygon. While drawing, tap once per corner — a drag pans the map. Click the middle of an edge to add a corner; right-click a corner to drop it.",
+  land_map_search: "Find a place",
+  land_map_search_ph: "Town or field…",
+  land_map_go: "Go",
+  land_map_plot: "Plot",
+  land_map_draw: "Draw field",
+  land_map_holding: "New location",
+  land_map_holding_edit: "Adjust location",
+  land_map_holding_drawing: "Walk the edge of this location. Neighbours stay outside. Three corners, then Done, then name it (e.g. Sarampovo).",
+  land_map_holding_name: "Name this location (e.g. Sarampovo)",
+  land_map_holding_save: "Save location",
+  land_map_holding_saved: "Location saved · {ha} ha",
+  land_map_holding_chip: "Location · {name}",
+  land_map_holding_kind: "Location",
+  land_map_holding_delete: "Remove location",
+  land_map_holding_delete_confirm:
+    "Remove this location line? Fields stay in the book. New draws will not clip to it.",
+  land_map_holding_deleted: "Location removed",
+  land_map_need_holding: "Draw a location first, then fields stay inside it",
+  land_map_outside: "That corner is outside the location. Stay on your land.",
+  land_map_undo: "Undo corner",
+  land_map_cancel: "Cancel",
+  land_map_edit: "Adjust corners",
+  land_map_move: "Move",
+  land_map_move_hint: "Drag the white handle to slide the whole shape. Saves live. Escape to stop.",
+  land_map_equip: "Place equipment",
+  land_map_equip_draw: "Equipment. Walk the corners, tap Done, name it.",
+  land_map_editing: "Drag corners — saves as you go. Click the middle of an edge to add a corner. Right-click a corner to remove it.",
+  land_book: "Where things sit",
+  land_book_hint: "Each location, then the fields, ponds, and equipment drawn inside it.",
+  land_book_loc: "Location",
+  land_map_book_total: "{loc} locations · drawn {ha} ha · {n} of {all} fields",
+  land_map_pond: "Place pond",
+  land_map_pond_draw: "Pond. Walk the corners, tap Done, name it.",
+  land_map_pond_name: "Accumulation",
+  land_map_pond_open: "Open accumulation",
+  land_map_done: "Done",
+  land_map_draw_this: "No shape yet. Tap Draw, walk the corners, tap Done.",
+  land_map_no_shape: "No shape on this field yet.",
+  land_map_sat: "Satellite",
+  land_map_hybrid: "Hybrid",
+  land_map_roadmap: "Map",
+  land_map_fit: "Fit fields",
+  land_map_save: "Save polygon",
+  land_map_delete: "Remove shape",
+  land_map_delete_confirm: "Remove this plot’s shape from the map?",
+  land_map_delete_plot: "Delete field",
+  land_map_delete_plot_confirm: "Delete this field from the land book? Plantings must be empty.",
+  land_map_deleted: "Shape removed",
+  land_map_plot_deleted: "Field removed",
+  land_map_saved: "Saved · {ha} ha",
+  land_map_need_plot: "Tap a field, or Draw to start a new one",
+  land_map_need_shape: "Draw a shape with at least three corners",
+  land_map_drawing: "Walk the corners. Tap Done (or the first corner) to close — it saves.",
+  land_map_drawing_new: "New field. Walk the corners, tap Done, then name it.",
+  land_map_name_new: "Name this field and pick a type.",
+  land_map_new: "New field",
+  land_map_total: "Drawn · {ha} ha · {n} of {all} fields",
+  land_map_drawing_done: "Saved · {ha} ha",
+  plot_use_yard: "Yard",
+  plot_use_garden: "Garden",
+  plot_use_orchard: "Orchard",
+  plot_use_vineyard: "Vineyard",
+  plot_use_hay: "Hay",
+  plot_use_pasture: "Pasture",
+  plot_use_arable: "Arable",
+  plot_use_greenhouse: "Greenhouse",
+  plot_use_polytunnel: "Polytunnel",
+  plot_use_nursery: "Nursery",
+  plot_use_botanic: "Botanic",
+  plot_use_research: "Research",
+  plot_use_herbs: "Herbs",
+  plot_use_berries: "Berries",
+  plot_use_hops: "Hops",
+  plot_use_forest: "Woodlot",
+  plot_use_pond: "Pond",
+  plot_use_equipment: "Equipment",
+  plot_use_bees: "Bees",
+  plot_use_livestock: "Livestock",
+  plot_use_compost: "Compost",
+  plot_use_fallow: "Fallow",
+  plot_use_other: "Other",
+  land_map_need_key: "Google Maps key missing. Operator: wrangler secret put GOOGLE_MAPS_API_KEY.",
+  land_map_load_fail:
+    "Google Maps did not load. Check Maps JavaScript API and that the key allows this site.",
+  land_map_no_place: "Place not found",
 
   water_title: "Water",
-  water_sub: "Drip + frost line · Edge closes the valve · confirm to start",
+  water_sub: "Rain into the pond · then drip and frost · edge closes the valve",
   water_zones: "Zones",
   water_no_zones: "No zones — run seed.",
   water_kind_frost: "frost",
@@ -184,7 +302,53 @@ const en = {
   rain_locked: "RAIN · LOCKED",
   rain_open: "RAIN · OPEN",
   water_footer:
-    "Edge is write-leader · local timeout closes the valve · Dewline packing later",
+    "Edge is write-leader · local timeout closes the valve · drip packed into the pump",
+  water_pond_title: "Accumulation",
+  water_pond_hint:
+    "First rain, then a dug basin. The isometric model is the farm: pond, pump, drip. Analog climate is Lonjsko polje (~880 mm rain, ~1000 mm evaporation). Storage target is the dry season, not the whole year. Draw the pond on Land, then set depth and banks here. Play the day in Pack — pipes light and the pond drops.",
+  water_pond_year: "Year demand",
+  water_pond_need: "Dry-season store",
+  water_pond_live: "Pond live",
+  water_pond_rain: "Rain net",
+  water_pond_gap: "Gap",
+  water_pond_empty:
+    "No pond on the land yet. Scene below is a 25×25 m example. On Land, tap Place pond and walk the corners to size the real basin.",
+  water_pond_depth: "Dig depth",
+  water_pond_slope: "Bank slope",
+  water_pond_catch: "Field that drains here",
+  water_pond_depth_help:
+    "How deep we excavate. The top 0.3 m stays empty (freeboard) so a storm does not overtop the banks.",
+  water_pond_slope_help:
+    "1 m down for this many metres out. 2–3 is a farm dugout you can mow. 1.2 is a steep clay cut — more volume, harder banks.",
+  water_pond_catch_help:
+    "How many times the pond’s surface of field sheds into it. Rain on that extra land, at 35% runoff. 1× is only the water surface.",
+  water_pond_f_top: "Top (equal-area square)",
+  water_pond_f_bot: "Bottom",
+  water_pond_f_dig: "Dig / water",
+  water_pond_f_bank: "Banks",
+  water_pond_f_vol: "Usable",
+  water_pond_f_catch: "Catchment",
+  water_pond_f_ha: "On the land",
+  water_pond_save: "Save pond",
+  water_pond_by_plot: "Need by field",
+  water_pond_no_demand: "No irrigated area yet — draw fields on Land.",
+  water_pack_title: "Pack",
+  water_pack_hint:
+    "Drip lines share the pump. Concurrent flow never exceeds main m³/h; the same valve box never overlaps. Frost stays on the FPS program and is not packed here. Play the day to see pond drawdown.",
+  water_pack_peak: "Peak flow",
+  water_pack_day: "Day volume",
+  water_pack_pump: "Pump",
+  water_pack_saved: "Rain vs city",
+  water_pack_starved: "Pond empty during a run — starved.",
+  water_pack_play: "Play",
+  water_pack_pause: "Pause",
+  water_pack_reset: "Reset",
+  water_pack_empty: "No drip zones to pack.",
+  water_pack_main: "Main flow (m³/h)",
+  water_pack_cycles: "Cycles / day",
+  water_pack_well: "Well (m³/h)",
+  water_pack_price: "City water (cents / m³)",
+  water_pack_save: "Save pump",
 
   frost_title: "Frost",
   frost_sub: "FPS LoRa · local program · ice 0–2 °C",
@@ -235,8 +399,9 @@ const en = {
 
   eyes_title: "Eyes",
   eyes_sub:
-    "Live view from the farm — yard, garden, hay. Cameras on this page when the edge has them.",
-  eyes_footer: "House from 1923 · live stills",
+    "Analog live — yard, garden, hay. Real NVR cameras land with the civil works.",
+  eyes_footer: "House from 1923 · analog live until NVR",
+  eyes_howto: "These are public countryside and stork livestreams from a climate-similar landscape (Lonjsko polje analog), not cameras on this plot. Mute autoplay. Yard NVR replaces them when it is up.",
   eyes_none: "No cameras yet.",
   eyes_no_view: "No view right now.",
   eyes_no_image: "No image yet",
@@ -366,6 +531,7 @@ const hr: Record<I18nKey, string> = {
   nav_docs: "Docs",
   nav_admin: "Admin",
   nav_menu: "Izbornik",
+  nav_lang: "Jezik",
   wx_clear: "VEDRO",
   wx_frost: "MRAZ",
   wx_fog: "MAGLA",
@@ -385,6 +551,10 @@ const hr: Record<I18nKey, string> = {
 
   home_story_ivan: "Kuća iz 1923. · sijeno, vrt, obitelj · Hrvatska",
   home_story_fork: "Predložak za fork · Europe/Zagreb",
+  analog_wx_hint:
+    "Brojevi uživo su klimatski analog iz Čigoča / Lonjskog polja (Open-Meteo) dok senzori ne sjede na ovoj zemlji. Nije privatni GPS.",
+  analog_eyes_live: "UŽIVO analog",
+  analog_lonjsko: "Bliži analog: selo roda, Lonjsko polje (HR)",
   home_metric_soil: "Tlo",
   home_water: "Voda",
   home_rain_lock: "Kišni lockout · {state}",
@@ -396,11 +566,13 @@ const hr: Record<I18nKey, string> = {
   home_klima: "Klima",
   home_eyes: "Pogled na farme",
   home_land: "Zemlja",
-  grok_placeholder: "Pitaj farmu…",
+  grok_placeholder: "Pitaj Polje…",
   grok_send: "Šalji",
   grok_no_briefing: "nema briefinga danas",
-  grok_login: "Prijavi se (Admin) pa pitaj.",
+  grok_login: "Prijavi se, pa pitaj Polje.",
   grok_empty: "(prazno)",
+  nav_polje: "Polje",
+  polje_ask_close: "Zatvori",
 
   home_pitch:
     "Polje je operacijski sustav ovog OPG-a: zemlja, voda, mraz, klima, kamere i knjiga. Oblak je mozak i knjiga. Rub na farmi je mišić i failsafe. OPG Ivan Jović gradimo javno da drugi OPG može forknuti isti stog.",
@@ -419,9 +591,9 @@ const hr: Record<I18nKey, string> = {
   home_how_title: "Kako koristiti konzolu",
   home_guide_water: "Kap i mraz ventili. Prijava, razlog, confirm. Bez confirma = samo prijedlog.",
   home_guide_frost: "Učitaj lokalni program, pa ARM. Rub prska ako noć ide na led. Oblak nije sigurnosni sloj.",
-  home_guide_eyes: "Kamere uživo: dvorište, vrt, sijeno. Still sada; stream kad rub ima veze.",
+  home_guide_eyes: "Analog streamovi sada (rode / krajolik). Kamere dvorišta, vrta i sijena kad NVR stigne na zemlju.",
   home_guide_land: "Parcele i sadnje. Knjiga zemlje — imena, faze, fotografije rasta.",
-  home_guide_plan: "Faze gradnje s vremenom i EUR. Ista ploča kao javni Trello.",
+  home_guide_plan: "Faze, zadaci, nabava i kalendar. Ista javna Trello ploča, sa sličicama kartica.",
   home_guide_ledger: "Javni novčani tok u centima EUR. Prazno dok OPG ne počne zarađivati. Nije porezna prijava.",
   home_plan_title: "Plan gradnje",
   home_plan_hint:
@@ -430,7 +602,7 @@ const hr: Record<I18nKey, string> = {
   home_trello_title: "Javni Trello",
   home_trello_hint: "Prati isti posao na javnoj ploči. Polje čita liste; upisi ostaju na Trello.",
   home_trello_open: "Otvori ploču",
-  home_live_stills: "Live slike",
+  home_live_stills: "Analog uživo — još nije ovo dvorište",
   home_no_phases: "Nema faza — dodaj ih na Plan.",
 
   plan_title: "Plan",
@@ -455,11 +627,34 @@ const hr: Record<I18nKey, string> = {
   plan_empty: "Nema faza.",
   plan_totals: "Okvir",
   plan_tbd: "TBD",
+  plan_tasks: "Zadaci",
+  plan_todo: "Za napraviti",
+  plan_doing: "U tijeku",
+  plan_task_done: "Gotovo",
+  plan_orders: "Nabava",
+  plan_orders_empty: "Nema stavki nabave.",
+  plan_orders_hint:
+    "Prvo istraživanje i ponude. Naručeno/primljeno treba confirm. Nije knjiga dok ne uneseš u Knjigu.",
+  plan_cal: "Kalendar",
+  plan_ics: "Pretplata (ICS)",
+  plan_big: "Velika slika",
+  plan_new_task: "Novi zadatak",
+  plan_save_task: "Spremi zadatak",
+  plan_due: "Rok",
+  plan_phase: "Faza",
+  plan_new_order: "Nova stavka nabave",
+  plan_vendor: "Dobavljač",
+  plan_save_order: "Spremi stavku",
+  plan_research: "Istraživanje cijena",
+  plan_research_hint:
+    "Grok pretražuje web s Workera. To su bilješke — spremi ih kao research u nabavu.",
+  plan_research_q: "Što kupiti",
+  plan_research_go: "Istraži",
 
   land_howto:
     "Parcele i sadnje su knjiga zemlje. Pregled je otvoren. Prijava za novu parcelu, sadnju, fazu ili fotografiju rasta.",
   water_howto:
-    "Pregled je otvoren. Naredbe trebaju prijavu. Zona, sekunde, razlog, confirm. Bez confirma oblak sprema samo prijedlog. Kišni lockout blokira kap, nikad naoružani mraz. Rub zatvara ventil na timeout.",
+    "Godišnja potreba dolazi s polja na Zemlji. Na karti stavi akumulaciju, pa ovdje dubinu i kosine. Pregled je otvoren. Naredbe trebaju prijavu. Kišni lockout blokira kap, nikad naoružani mraz.",
   frost_howto:
     "FPS LoRa zaštita od mraza. Učitaj program, pa ARM s razlogom. Lokalni čvor prska ako temperatura padne — Cloudflare nije sigurnosni sloj. Otvaranje ventila također treba confirm.",
   ledger_howto:
@@ -501,9 +696,97 @@ const hr: Record<I18nKey, string> = {
   land_planting_saved: "Sađenje spremljeno · {id}",
   land_updated: "Ažurirano · {stage}",
   land_pick_file: "Odaberi datoteku",
+  land_map: "Polja",
+  land_map_howto:
+    "Prvo nacrtaš svaku lokaciju koju obrađuješ (npr. Sarampovo, pa drugo polje). Imenuj je. Paša, voćnjak, sijeno, akumulacija, oprema samo unutar te linije. Tapni oblik: Podesi kutove, ili Pomakni da povučeš cijeli poligon. Dok crtaš, tapni jednom po kut — povlačenje pomiče kartu. Klikni sredinu ruba da dodaš kut; desni klik da ga makneš.",
+  land_map_search: "Nađi mjesto",
+  land_map_search_ph: "Mjesto ili polje…",
+  land_map_go: "Idi",
+  land_map_plot: "Parcela",
+  land_map_draw: "Crtaj polje",
+  land_map_holding: "Nova lokacija",
+  land_map_holding_edit: "Podesi lokaciju",
+  land_map_holding_drawing: "Obiđi rub ove lokacije. Susjedi ostaju vani. Tri kuta, pa Gotovo, pa ime (npr. Sarampovo).",
+  land_map_holding_name: "Ime lokacije (npr. Sarampovo)",
+  land_map_holding_save: "Spremi lokaciju",
+  land_map_holding_saved: "Lokacija spremljena · {ha} ha",
+  land_map_holding_chip: "Lokacija · {name}",
+  land_map_holding_kind: "Lokacija",
+  land_map_holding_delete: "Makni lokaciju",
+  land_map_holding_delete_confirm:
+    "Maknuti liniju ove lokacije? Polja ostaju u knjizi. Nova crtanja neće ići uz nju.",
+  land_map_holding_deleted: "Lokacija uklonjena",
+  land_map_need_holding: "Prvo nacrtaš lokaciju, pa polja ostaju unutra",
+  land_map_outside: "Taj kut je izvan lokacije. Ostani na svojoj zemlji.",
+  land_map_undo: "Poništi kut",
+  land_map_cancel: "Odustani",
+  land_map_edit: "Podesi kutove",
+  land_map_move: "Pomakni",
+  land_map_move_hint: "Povuci bijelu točku da pomakneš cijeli oblik. Sprema uživo. Escape da staneš.",
+  land_map_equip: "Stavi opremu",
+  land_map_equip_draw: "Oprema. Obiđi kutove, tapni Gotovo, daj ime.",
+  land_map_editing: "Povuci kutove — sprema uživo. Klikni sredinu ruba da dodaš kut. Desni klik na kut da ga makneš.",
+  land_book: "Što je gdje",
+  land_book_hint: "Svaka lokacija, pa polja, akumulacije i oprema unutra.",
+  land_book_loc: "Lokacija",
+  land_map_book_total: "{loc} lokacija · nacrtano {ha} ha · {n} od {all} polja",
+  land_map_pond: "Stavi akumulaciju",
+  land_map_pond_draw: "Akumulacija. Obiđi kutove, tapni Gotovo, daj ime.",
+  land_map_pond_name: "Akumulacija",
+  land_map_pond_open: "Otvori akumulaciju",
+  land_map_done: "Gotovo",
+  land_map_draw_this: "Još nema oblika. Tapni Crtaj, obiđi kutove, tapni Gotovo.",
+  land_map_no_shape: "Ovo polje još nema oblik.",
+  land_map_sat: "Satelit",
+  land_map_hybrid: "Hibrid",
+  land_map_roadmap: "Karta",
+  land_map_fit: "Uklopi polja",
+  land_map_save: "Spremi poligon",
+  land_map_delete: "Makni oblik",
+  land_map_delete_confirm: "Maknuti oblik ove parcele s karte?",
+  land_map_delete_plot: "Obriši polje",
+  land_map_delete_plot_confirm: "Obrisati ovo polje iz knjige zemlje? Sadnje moraju biti prazne.",
+  land_map_deleted: "Oblik uklonjen",
+  land_map_plot_deleted: "Polje uklonjeno",
+  land_map_saved: "Spremljeno · {ha} ha",
+  land_map_need_plot: "Tapni polje, ili Crtaj za novo",
+  land_map_need_shape: "Nacrtaj oblik s barem tri kuta",
+  land_map_drawing: "Obiđi kutove. Tapni Gotovo (ili prvi kut) da zatvoriš — sprema se.",
+  land_map_drawing_new: "Novo polje. Obiđi kutove, tapni Gotovo, pa daj ime.",
+  land_map_name_new: "Imenuj polje i odaberi tip.",
+  land_map_new: "Novo polje",
+  land_map_total: "Nacrtano · {ha} ha · {n} od {all} polja",
+  land_map_drawing_done: "Spremljeno · {ha} ha",
+  plot_use_yard: "Dvorište",
+  plot_use_garden: "Vrt",
+  plot_use_orchard: "Voćnjak",
+  plot_use_vineyard: "Vinograd",
+  plot_use_hay: "Sijeno",
+  plot_use_pasture: "Pašnjak",
+  plot_use_arable: "Oranica",
+  plot_use_greenhouse: "Staklenik",
+  plot_use_polytunnel: "Plastenik",
+  plot_use_nursery: "Rasadnik",
+  plot_use_botanic: "Botanički",
+  plot_use_research: "Pokus",
+  plot_use_herbs: "Ljekovito",
+  plot_use_berries: "Bobice",
+  plot_use_hops: "Hmelj",
+  plot_use_forest: "Šuma",
+  plot_use_pond: "Jezero",
+  plot_use_equipment: "Oprema",
+  plot_use_bees: "Pčele",
+  plot_use_livestock: "Stoka",
+  plot_use_compost: "Kompost",
+  plot_use_fallow: "Ugar",
+  plot_use_other: "Ostalo",
+  land_map_need_key: "Nedostaje Google Maps ključ. Operator: wrangler secret put GOOGLE_MAPS_API_KEY.",
+  land_map_load_fail:
+    "Google Maps se nije učitao. Provjeri Maps JavaScript API i da ključ dopušta ovu stranicu.",
+  land_map_no_place: "Mjesto nije nađeno",
 
   water_title: "Voda",
-  water_sub: "Kap po kap + mraz linija · Edge zatvara ventil · confirm za pokretanje",
+  water_sub: "Kiša u akumulaciju · zatim kap i mraz · rub zatvara ventil",
   water_zones: "Zone",
   water_no_zones: "Nema zona — pokreni seed.",
   water_kind_frost: "mraz",
@@ -532,7 +815,53 @@ const hr: Record<I18nKey, string> = {
   rain_locked: "KIŠA · ZAKLJUČANO",
   rain_open: "KIŠA · OTVORENO",
   water_footer:
-    "Edge je write-leader · lokalni timeout gasi ventil · Dewline packing kasnije",
+    "Edge je write-leader · lokalni timeout gasi ventil · kap ide u kapacitet pumpe",
+  water_pond_title: "Akumulacija",
+  water_pond_hint:
+    "Prvo kiša, onda iskop. Izometrijski model je gospodarstvo: jezero, pumpa, kap. Analogna klima je Lonjsko polje (~880 mm kiše, ~1000 mm evaporacije). Cilj spremnika je sušna sezona, ne cijela godina. Na Zemlji nacrtaš jezero, ovdje dubinu i kosine. Pokreni dan u Pakiranju — cijevi se pale, razina pada.",
+  water_pond_year: "Godišnja potreba",
+  water_pond_need: "Sušna zaliha",
+  water_pond_live: "Živi volumen",
+  water_pond_rain: "Kiša neto",
+  water_pond_gap: "Manjak",
+  water_pond_empty:
+    "Još nema akumulacije. Scena dolje je primjer 25×25 m. Na Zemlji tapni Stavi akumulaciju i obiđi kutove da se izmjeri pravo jezero.",
+  water_pond_depth: "Dubina iskopa",
+  water_pond_slope: "Kosina obale",
+  water_pond_catch: "Polje koje sljeva ovamo",
+  water_pond_depth_help:
+    "Koliko duboko kopamo. Gornjih 0,3 m ostaje prazno (slobodni bok) da oluja ne prelije obalu.",
+  water_pond_slope_help:
+    "1 m dolje na ovoliko metara van. 2–3 je gospodarski iskop koji se može kositi. 1,2 je strma glina — više volumena, teža obala.",
+  water_pond_catch_help:
+    "Koliko puta površine jezera polje sljeva u njega. Kiša s tog polja, 35% otjecanja. 1× je samo vodena površina.",
+  water_pond_f_top: "Vrh (kvadrat jednake površine)",
+  water_pond_f_bot: "Dno",
+  water_pond_f_dig: "Iskop / voda",
+  water_pond_f_bank: "Obale",
+  water_pond_f_vol: "Koristivo",
+  water_pond_f_catch: "Sliv",
+  water_pond_f_ha: "Na zemlji",
+  water_pond_save: "Spremi akumulaciju",
+  water_pond_by_plot: "Potreba po polju",
+  water_pond_no_demand: "Nema navodnjavane površine — nacrtaj polja na Zemlji.",
+  water_pack_title: "Pakiranje",
+  water_pack_hint:
+    "Kap linije dijele pumpu. Zbroj protoka nikad ne prelazi glavni m³/h; isti ventibox ne radi paralelno. Mraz ostaje na FPS programu i ovdje se ne pakira. Pokreni dan da vidiš crpljenje jezera.",
+  water_pack_peak: "Vrh protoka",
+  water_pack_day: "Dnevni volumen",
+  water_pack_pump: "Pumpa",
+  water_pack_saved: "Kiša vs grad",
+  water_pack_starved: "Jezero prazno tijekom rada — glad.",
+  water_pack_play: "Pokreni",
+  water_pack_pause: "Pauza",
+  water_pack_reset: "Reset",
+  water_pack_empty: "Nema drip zona za paket.",
+  water_pack_main: "Glavni protok (m³/h)",
+  water_pack_cycles: "Ciklusa / dan",
+  water_pack_well: "Bunari (m³/h)",
+  water_pack_price: "Gradska voda (centi / m³)",
+  water_pack_save: "Spremi pumpu",
 
   frost_title: "Mraz",
   frost_sub: "FPS LoRa · lokalni program · led 0–2 °C",
@@ -583,8 +912,9 @@ const hr: Record<I18nKey, string> = {
 
   eyes_title: "Oči",
   eyes_sub:
-    "Pogled uživo s farme — dvorište, vrt, sijeno. Kamere na ovoj stranici kad ih rub ima.",
-  eyes_footer: "Kuća iz 1923. · uživo still",
+    "Analog uživo — dvorište, vrt, sijeno. Prave NVR kamere dolaze s građevinskim radovima.",
+  eyes_footer: "Kuća iz 1923. · analog uživo dok NVR ne stigne",
+  eyes_howto: "Javni livestreamovi kraja i roda iz slične klime (analog Lonjskog polja), ne kamere s ove parcele. Mute autoplay. NVR na dvorištu ih zamjenjuje kad stigne.",
   eyes_none: "Još nema kamera.",
   eyes_no_view: "Trenutačno nema pogleda.",
   eyes_no_image: "Još nema slike",
@@ -703,10 +1033,10 @@ export const I18N = { en, hr } as const;
 export const HTML_LANG = `lang="en"`;
 
 export function langToggle(): string {
-  return `<div class="lang-toggle" role="group" aria-label="Language">
-      <button type="button" class="lang-btn" data-set-lang="en" aria-pressed="true">EN</button>
-      <button type="button" class="lang-btn" data-set-lang="hr" aria-pressed="false">HR</button>
-    </div>`;
+  return `<button type="button" class="lang-toggle" id="lang-toggle" data-lang="en" aria-label="Language">
+      <span class="lang-side" data-lang="en">EN</span>
+      <span class="lang-side" data-lang="hr">HR</span>
+    </button>`;
 }
 
 export const I18N_HEAD_JS = `<script>
@@ -752,21 +1082,25 @@ export const I18N_JS = `
         const prefix = el.getAttribute("data-i18n-title-prefix") || "";
         el.textContent = prefix + t(el.getAttribute("data-i18n-title"));
       });
-      document.querySelectorAll(".lang-btn").forEach((btn) => {
-        btn.setAttribute("aria-pressed", btn.getAttribute("data-set-lang") === LANG ? "true" : "false");
+      document.querySelectorAll(".lang-side").forEach((el) => {
+        el.setAttribute("aria-current", el.getAttribute("data-lang") === LANG ? "true" : "false");
       });
+      const tog = document.getElementById("lang-toggle");
+      if (tog) {
+        tog.setAttribute("data-lang", LANG);
+        tog.setAttribute("aria-label", t("nav_lang"));
+      }
       if (typeof window.poljeOnLang === "function") window.poljeOnLang();
       document.dispatchEvent(new Event("polje:lang"));
       document.documentElement.removeAttribute("data-i18n-pending");
     }
-    document.querySelectorAll(".lang-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const next = btn.getAttribute("data-set-lang");
-        if (next !== "en" && next !== "hr") return;
-        LANG = next;
+    const langToggleEl = document.getElementById("lang-toggle");
+    if (langToggleEl) {
+      langToggleEl.addEventListener("click", () => {
+        LANG = LANG === "hr" ? "en" : "hr";
         try { localStorage.setItem("polje_lang", LANG); } catch (e) {}
         applyI18n();
       });
-    });
+    }
     applyI18n();
 `.trim();

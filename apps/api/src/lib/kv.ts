@@ -10,6 +10,7 @@ export { DEFAULT_FARM_FLAGS };
 export const RL_LOGIN = { limit: 10, windowSec: 900 } as const;
 export const RL_GROK = { limit: 40, windowSec: 900 } as const;
 export const RL_MAIL = { limit: 30, windowSec: 3600 } as const;
+export const RL_MAPS = { limit: 20, windowSec: 600 } as const;
 
 export function flagsKey(slug: string): string {
   return `flags:${slug}`;
@@ -29,6 +30,10 @@ export function rlGrokKey(slug: string): string {
 
 export function rlMailKey(slug: string): string {
   return `rl:mail:${slug}`;
+}
+
+export function rlMapsKey(ip: string): string {
+  return `rl:maps:${ip}`;
 }
 
 export function clientIp(c: {

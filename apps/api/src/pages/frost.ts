@@ -6,7 +6,6 @@ import {
   shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
@@ -35,16 +34,11 @@ export async function renderFrost(c: Context<AppEnv>) {
     wx: wxSkin.wx,
     extraCss: `
   .status-big {
-    font-size: 28px;
+    font-size: clamp(22px, 5vw, 32px);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ice);
     margin: 0 0 8px;
-  }
-  .btn-ice {
-    display: inline-flex; align-items: center; height: 40px; padding: 0 20px;
-    background: var(--ice); color: var(--void); border: none; border-radius: 4px;
-    letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 700;
   }
 `,
   })}
@@ -52,12 +46,14 @@ export async function renderFrost(c: Context<AppEnv>) {
     <h1 data-i18n="frost_title">Frost</h1>
     <p class="sub" data-i18n="frost_sub">FPS LoRa · local program · ice 0–2 °C</p>
     <p class="hint" data-i18n="frost_howto">This is FPS LoRa frost protection. Load the program, then ARM with a reason. The local node sprays if temperature drops — Cloudflare is not the safety layer. Open valve also needs confirm.</p>
+    <section class="panel status-panel">
     <p class="status-big" id="frost-status">—</p>
     <div class="metrics cols-3">
       <div class="metric"><div><span class="n" id="m-temp">—</span><span class="u">°C</span></div><div class="l">FPS temp</div></div>
       <div class="metric"><div><span class="n" id="m-rh">—</span><span class="u">% RH</span></div><div class="l" data-i18n="frost_humidity">Humidity</div></div>
       <div class="metric"><div><span class="n" id="m-dp">—</span><span class="u">°C</span></div><div class="l" data-i18n="frost_dewpoint">Dew point</div></div>
     </div>
+    </section>
     <section class="panel admin-only">
       <h2 data-i18n="frost_program">Program</h2>
       <div class="grid2">
@@ -105,11 +101,10 @@ export async function renderFrost(c: Context<AppEnv>) {
       <h2 data-i18n="frost_events">Recent events</h2>
       <ul id="events"><li class="dim" data-i18n="frost_no_events">No spray events.</li></ul>
     </section>
-    ${OPERATOR_GATE_HTML}
     <footer data-i18n="frost_footer">Local failsafe. Cloud is not the only safety layer.</footer>
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts()}
   <script>
     function jsonHeaders() {
       return { "Content-Type": "application/json" };

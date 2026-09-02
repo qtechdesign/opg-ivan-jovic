@@ -38,7 +38,9 @@ Full bible: [`OPG-IVAN-JOVIC.md`](OPG-IVAN-JOVIC.md).
 | Where | What |
 |---|---|
 | `.dev.vars` (gitignored) | Local Wrangler secrets — copy from `.dev.vars.example` |
-| Cloudflare Secrets | Production — `OPERATOR_PASSWORD`, `OPERATOR_TOKEN`, `INGEST_TOKEN`, `AGENT_TOKEN`, `XAI_API_KEY`. Login email is `OPERATOR_EMAIL` in wrangler vars. |
+| Cloudflare Secrets | Production — `OPERATOR_PASSWORD`, `OPERATOR_TOKEN`, `INGEST_TOKEN`, `AGENT_TOKEN`, `XAI_API_KEY`, `GOOGLE_MAPS_API_KEY`. Login email is `OPERATOR_EMAIL` in wrangler vars. |
+
+Field map (`/land`) uses Google Maps satellite/hybrid. Create a **browser** key (not the Android FPS key): enable **Maps JavaScript API**, **Places API**, and **Geocoding API**, then restrict HTTP referrers to `https://opg-ivanjovic.hr/*`, `https://www.opg-ivanjovic.hr/*`, and `http://127.0.0.1:8787/*`. Local: `GOOGLE_MAPS_API_KEY` in `.dev.vars`. Production: `npx wrangler secret put GOOGLE_MAPS_API_KEY`. The key is public in the page (Maps JS requirement) — referrer restriction is the lock.
 
 Cursor MCP: copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) → `.cursor/mcp.json` with `AGENT_TOKEN`.
 

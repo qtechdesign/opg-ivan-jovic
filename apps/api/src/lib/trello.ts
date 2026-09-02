@@ -9,6 +9,7 @@ export type TrelloCard = {
   name: string;
   url: string;
   due: string | null;
+  thumb: string | null;
 };
 
 export type TrelloList = {
@@ -29,6 +30,8 @@ export function trelloBoardIdForSlug(slug: string): string | null {
   return null;
 }
 
+type RawPreview = { url?: string; width?: number; height?: number };
+
 type RawBoard = {
   id?: string;
   name?: string;
@@ -44,8 +47,33 @@ type RawBoard = {
     closed?: boolean;
     due?: string | null;
     pos?: number;
+    cover?: { scaled?: RawPreview[] };
+    attachments?: Array<{ previews?: RawPreview[] }>;
   }>;
 };
+
+/** Smallest public Trello preview (favicon-sized). Keep trello.com URLs so CloudFront signatures stay fresh. */
+export function trelloCardThumb(card: {
+  cover?: { scaled?: RawPreview[] };
+  attachments?: Array<{ previews?: RawPreview[] }>;
+}): string | null {
+  const scaled = card.cover?.scaled ?? [];
+  const previews = (card.attachments ?? []).flatMap((a) => a.previews ?? []);
+  const pool = [...scaled, ...previews].filter((p) => p.url);
+  if (!pool.length) return null;
+  pool.sort((a, b) => (a.width ?? 9999) - (b.width ?? 9999));
+  const url = pool[0]?.url ?? null;
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "trello.com" && u.hostname !== "files.trello.com") {
+      return null;
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}
 
 export function parseTrelloBoard(raw: RawBoard, fallbackId: string): TrelloBoardView {
   const lists = (raw.lists ?? [])
@@ -62,12 +90,13 @@ export function parseTrelloBoard(raw: RawBoard, fallbackId: string): TrelloBoard
       cards: cards
         .filter((c) => c.idList === l.id)
         .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
-        .slice(0, 12)
+        .slice(0, 16)
         .map((c) => ({
           id: c.id,
           name: c.name,
           url: c.shortUrl || c.url || `https://trello.com/c/${c.id}`,
           due: c.due ?? null,
+          thumb: trelloCardThumb(c),
         })),
     })),
   };

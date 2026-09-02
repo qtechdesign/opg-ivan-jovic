@@ -8,8 +8,19 @@ import {
   settleEnergyDaily,
   startOfLocalDayUtc,
 } from "../src/lib/energy";
+import {
+  analogBatchId,
+  analogLiveOn,
+  analogPublicMeta,
+  buildAnalogBatch,
+  isAnalogBatchId,
+  syntheticObservation,
+} from "../src/lib/analog";
+import { analogFeedForCamera, analogEmbedUrl } from "../src/lib/analog-feeds";
+import { wxFromWmoCode, wxFromLive } from "../src/lib/weather";
 import { canonicalAddress } from "../src/lib/mail";
 import { parseTrelloBoard } from "../src/lib/trello";
+import { buildSchedule, type IrrigationLine, type SystemParams } from "../src/lib/dewline-pack";
 
 const OPERATOR = "test-operator-token";
 const INGEST = "test-ingest-token";
@@ -24,6 +35,9 @@ const MIGRATION = [
   lat REAL,
   lon REAL,
   starlink_site TEXT,
+  extent_json TEXT,
+  extent_name TEXT,
+  extent_ha REAL,
   created_at TEXT NOT NULL
 )`,
   `CREATE TABLE plots (
@@ -32,7 +46,18 @@ const MIGRATION = [
   name TEXT NOT NULL,
   hectares REAL,
   use_type TEXT,
-  notes TEXT
+  notes TEXT,
+  geom_json TEXT,
+  holding_id TEXT
+)`,
+  `CREATE TABLE holdings (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  notes TEXT,
+  geom_json TEXT,
+  hectares REAL,
+  created_at TEXT NOT NULL
 )`,
   `CREATE TABLE plantings (
   id TEXT PRIMARY KEY,
@@ -152,6 +177,10 @@ const MIGRATION = [
   `CREATE TABLE farm_settings (
   farm_id TEXT PRIMARY KEY,
   rain_lockout INTEGER NOT NULL DEFAULT 0,
+  main_flow_m3h REAL NOT NULL DEFAULT 8,
+  cycles_per_day INTEGER NOT NULL DEFAULT 1,
+  well_rate_m3h REAL NOT NULL DEFAULT 0,
+  water_price_cents INTEGER NOT NULL DEFAULT 240,
   updated_at TEXT NOT NULL
 )`,
   `CREATE TABLE irrigation_zones (
@@ -164,7 +193,9 @@ const MIGRATION = [
   max_duration_sec INTEGER NOT NULL DEFAULT 3600,
   default_duration_sec INTEGER NOT NULL DEFAULT 600,
   rain_lockout INTEGER NOT NULL DEFAULT 1,
-  enabled INTEGER NOT NULL DEFAULT 1
+  enabled INTEGER NOT NULL DEFAULT 1,
+  flow_m3h REAL,
+  valve_box TEXT
 )`,
   `CREATE TABLE irrigation_runs (
   id TEXT PRIMARY KEY,
@@ -188,6 +219,18 @@ const MIGRATION = [
   duration_sec INTEGER NOT NULL,
   timezone TEXT NOT NULL DEFAULT 'Europe/Zagreb',
   enabled INTEGER NOT NULL DEFAULT 0
+)`,
+  `CREATE TABLE water_works (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  plot_id TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'pond',
+  depth_m REAL NOT NULL DEFAULT 2.2,
+  bank_slope REAL NOT NULL DEFAULT 2.5,
+  catchment_factor REAL NOT NULL DEFAULT 4,
+  fill_pct REAL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 )`,
   `CREATE TABLE briefings (
   id TEXT PRIMARY KEY,
@@ -269,6 +312,37 @@ const MIGRATION = [
   status TEXT NOT NULL DEFAULT 'planned',
   sort INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
+)`,
+  `CREATE TABLE plan_tasks (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  phase_id TEXT,
+  title TEXT NOT NULL,
+  body TEXT,
+  status TEXT NOT NULL DEFAULT 'todo',
+  due_on TEXT,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)`,
+  `CREATE TABLE plan_orders (
+  id TEXT PRIMARY KEY,
+  farm_id TEXT NOT NULL,
+  phase_id TEXT,
+  task_id TEXT,
+  title TEXT NOT NULL,
+  vendor TEXT,
+  url TEXT,
+  qty REAL NOT NULL DEFAULT 1,
+  unit_cents INTEGER NOT NULL DEFAULT 0,
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'EUR',
+  status TEXT NOT NULL DEFAULT 'research',
+  due_on TEXT,
+  notes TEXT,
+  source TEXT NOT NULL DEFAULT 'ui',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 )`,
 ];
 
@@ -474,6 +548,327 @@ describe("polje M1", () => {
     expect(audit.audit.some((a) => a.action === "plot.create")).toBe(true);
   });
 
+  it("PATCH /v1/plots/:id geom_json stores polygon + hectares", async () => {
+    const square = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [16.0, 45.1],
+          [16.001, 45.1],
+          [16.001, 45.101],
+          [16.0, 45.101],
+          [16.0, 45.1],
+        ],
+      ],
+    };
+    const res = await app.request(
+      "/v1/plots/b1000000-0000-4000-8000-000000000001",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ geom_json: JSON.stringify(square) }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    const plot = (await res.json()) as {
+      geom_json: string;
+      hectares: number;
+    };
+    expect(plot.geom_json).toContain("Polygon");
+    expect(plot.hectares).toBeGreaterThan(0);
+
+    const list = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    const body = (await list.json()) as {
+      plots: Array<{ id: string; geom_json: string | null }>;
+    };
+    const house = body.plots.find(
+      (p) => p.id === "b1000000-0000-4000-8000-000000000001"
+    );
+    expect(house?.geom_json).toContain("45.1");
+    expect(Array.isArray((house as { plantings?: unknown[] })?.plantings)).toBe(
+      true
+    );
+    expect(Array.isArray((house as { zones?: unknown[] })?.zones)).toBe(true);
+
+    const cleared = await app.request(
+      "/v1/plots/b1000000-0000-4000-8000-000000000001",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ geom_json: null }),
+      },
+      env
+    );
+    expect(cleared.status).toBe(200);
+    const after = (await cleared.json()) as {
+      geom_json: string | null;
+      hectares: number | null;
+    };
+    expect(after.geom_json).toBeNull();
+    expect(after.hectares).toBeNull();
+
+    const listed = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    const listedBody = (await listed.json()) as {
+      plots: Array<{ id: string; hectares: number | null; geom_json: string | null }>;
+    };
+    const house2 = listedBody.plots.find(
+      (p) => p.id === "b1000000-0000-4000-8000-000000000001"
+    );
+    expect(house2?.geom_json).toBeNull();
+    expect(house2?.hectares).toBeNull();
+  });
+
+  it("PATCH /v1/farms/:slug/extent then clips plots to the holding", async () => {
+    const listed0 = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    expect(listed0.status).toBe(200);
+    const body0 = (await listed0.json()) as { holding: unknown };
+    expect(body0.holding).toBeNull();
+
+    const denied = await app.request(
+      "/v1/farms/ivan-jovic/extent",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extent_json: "{}" }),
+      },
+      env
+    );
+    expect(denied.status).toBe(401);
+
+    const holding = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [15.99, 45.09],
+          [16.01, 45.09],
+          [16.01, 45.11],
+          [15.99, 45.11],
+          [15.99, 45.09],
+        ],
+      ],
+    };
+    const patch = await app.request(
+      "/v1/farms/ivan-jovic/extent",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({
+          extent_json: JSON.stringify(holding),
+          extent_name: "Sarampovo",
+        }),
+      },
+      env
+    );
+    expect(patch.status).toBe(200);
+    const saved = (await patch.json()) as {
+      extent_name: string;
+      extent_ha: number;
+      extent_json: string;
+    };
+    expect(saved.extent_name).toBe("Sarampovo");
+    expect(saved.extent_ha).toBeGreaterThan(0);
+    expect(saved.extent_json).toContain("Polygon");
+
+    const listed = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    const body = (await listed.json()) as {
+      holding: { name: string; hectares: number; geom_json: string } | null;
+      holdings: Array<{ name: string }>;
+    };
+    expect(body.holding?.name).toBe("Sarampovo");
+    expect(body.holding?.hectares).toBeGreaterThan(0);
+    expect(body.holdings.map((h) => h.name)).toContain("Sarampovo");
+
+    const inside = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [16.0, 45.1],
+          [16.001, 45.1],
+          [16.001, 45.101],
+          [16.0, 45.101],
+          [16.0, 45.1],
+        ],
+      ],
+    };
+    const ok = await app.request(
+      "/v1/plots/b1000000-0000-4000-8000-000000000001",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ geom_json: JSON.stringify(inside) }),
+      },
+      env
+    );
+    expect(ok.status).toBe(200);
+
+    const poke = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [16.0, 45.1],
+          [16.001, 45.1],
+          [16.012, 45.101],
+          [16.0, 45.101],
+          [16.0, 45.1],
+        ],
+      ],
+    };
+    const nudged = await app.request(
+      "/v1/plots/b1000000-0000-4000-8000-000000000001",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ geom_json: JSON.stringify(poke) }),
+      },
+      env
+    );
+    expect(nudged.status).toBe(200);
+
+    const far = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [16.5, 45.5],
+          [16.501, 45.5],
+          [16.501, 45.501],
+          [16.5, 45.501],
+          [16.5, 45.5],
+        ],
+      ],
+    };
+    const outside = await app.request(
+      "/v1/plots/b1000000-0000-4000-8000-000000000001",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ geom_json: JSON.stringify(far) }),
+      },
+      env
+    );
+    expect(outside.status).toBe(400);
+    const err = (await outside.json()) as { error: string };
+    expect(err.error).toBe("outside_holding");
+
+    const created = await app.request(
+      "/v1/plots",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Neighbour hay",
+          use_type: "hay",
+          geom_json: JSON.stringify(far),
+        }),
+      },
+      env
+    );
+    expect(created.status).toBe(400);
+    const createdErr = (await created.json()) as { error: string };
+    expect(createdErr.error).toBe("outside_holding");
+
+    const loc2 = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [16.49, 45.49],
+          [16.51, 45.49],
+          [16.51, 45.51],
+          [16.49, 45.51],
+          [16.49, 45.49],
+        ],
+      ],
+    };
+    const second = await app.request(
+      "/v1/holdings",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Other field",
+          geom_json: JSON.stringify(loc2),
+        }),
+      },
+      env
+    );
+    expect(second.status).toBe(201);
+
+    const kit = await app.request(
+      "/v1/plots",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Pump shed",
+          use_type: "equipment",
+          geom_json: JSON.stringify(far),
+        }),
+      },
+      env
+    );
+    expect(kit.status).toBe(201);
+    const kitBody = (await kit.json()) as { holding_id: string | null };
+    expect(kitBody.holding_id).toBeTruthy();
+
+    const listed2 = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    const body2 = (await listed2.json()) as { holdings: Array<{ name: string }> };
+    expect(body2.holdings.map((h) => h.name).sort()).toEqual(["Other field", "Sarampovo"]);
+
+    const auditRes = await app.request("/v1/audit?farm=ivan-jovic&limit=20", {
+      headers: { Authorization: `Bearer ${OPERATOR}` },
+    }, env);
+    expect(auditRes.status).toBe(200);
+    const audit = (await auditRes.json()) as { audit: Array<{ action: string }> };
+    expect(audit.audit.some((a) => a.action === "farm.extent")).toBe(true);
+  });
+
+  it("DELETE /v1/plots/:id removes a field with confirm", async () => {
+    const created = await app.request(
+      "/v1/plots",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Temp nursery",
+          use_type: "nursery",
+        }),
+      },
+      env
+    );
+    expect(created.status).toBe(201);
+    const plot = (await created.json()) as { id: string };
+
+    const denied = await app.request(
+      `/v1/plots/${plot.id}`,
+      {
+        method: "DELETE",
+        headers: authJson(),
+        body: JSON.stringify({}),
+      },
+      env
+    );
+    expect(denied.status).toBe(400);
+
+    const res = await app.request(
+      `/v1/plots/${plot.id}`,
+      {
+        method: "DELETE",
+        headers: authJson(),
+        body: JSON.stringify({ confirm: true }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+
+    const list = await app.request("/v1/plots?farm=ivan-jovic", {}, env);
+    const body = (await list.json()) as { plots: Array<{ id: string }> };
+    expect(body.plots.some((p) => p.id === plot.id)).toBe(false);
+  });
+
   it("POST planting + PATCH stage with audit", async () => {
     const create = await app.request(
       "/v1/plantings",
@@ -524,10 +919,20 @@ describe("polje M1", () => {
     expect(html).toContain("Overview");
     expect(html).toContain("Ledger");
     expect(html).toContain("lang-toggle");
+    expect(html).toContain('id="lang-toggle"');
     expect(html).toContain("https://docs.opg-ivanjovic.hr");
     expect(html).toContain("Docs");
     expect(html).toContain("nav-rail");
     expect(html).toContain('aria-current="page"');
+    expect(html).toContain("G-9VEBFY7JYD");
+    expect(html).toContain("googletagmanager.com/gtag/js");
+    expect(html).toContain("farm-map");
+    expect(html).toContain("data-maps-key");
+    expect(html).toContain("map-search-row");
+    expect(html).toContain('id="map-draw"');
+    expect(html).toContain('id="op-logout"');
+    expect(html).not.toContain('id="op-gate"');
+    expect(html).not.toContain('class="op-gate"');
   });
 
   it("GET / includes Open Graph tags", async () => {
@@ -582,6 +987,8 @@ describe("polje M1", () => {
     expect(html).toContain("Civil works");
     expect(html).toContain("https://trello.com/b/RCANtF3j/opg-ivan-jovic");
     expect(html).toContain('href="/plan"');
+    expect(html).toContain("analog_wx_hint");
+    expect(html).toContain("i.ytimg.com");
   });
 
   it("GET /plan is public HTML", async () => {
@@ -591,6 +998,216 @@ describe("polje M1", () => {
     expect(html).toContain("plan_howto");
     expect(html).toContain("Civil works");
     expect(html).toContain("trello-live");
+    expect(html).toContain("Todos");
+    expect(html).toContain("calendar.ics");
+  });
+
+  it("GET /sitemap.xml lists public pages", async () => {
+    const res = await app.request(
+      "/sitemap.xml",
+      { headers: { Host: "www.opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("xml");
+    const xml = await res.text();
+    expect(xml).toContain("http://www.sitemaps.org/schemas/sitemap/0.9");
+    expect(xml).toContain("<loc>https://opg-ivanjovic.hr/</loc>");
+    expect(xml).toContain("<loc>https://opg-ivanjovic.hr/eyes</loc>");
+    expect(xml).toContain("<loc>https://opg-ivanjovic.hr/plan</loc>");
+    expect(xml).not.toContain("/login");
+    expect(xml).not.toContain("/v1/");
+    expect(xml).not.toContain("www.opg-ivanjovic.hr/");
+  });
+
+  it("GET /robots.txt points at sitemap.xml", async () => {
+    const res = await app.request(
+      "/robots.txt",
+      { headers: { Host: "opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Sitemap: https://opg-ivanjovic.hr/sitemap.xml");
+    expect(body).toContain("Agentmap: https://opg-ivanjovic.hr/.well-known/ai-catalog.json");
+    expect(body).toContain("Disallow: /v1/");
+    expect(body).toContain("Disallow: /login");
+  });
+
+  it("GET / sends RFC 8288 Link headers for agents", async () => {
+    const res = await app.request(
+      "/",
+      { headers: { Host: "opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    const link = res.headers.get("link") ?? "";
+    expect(link).toContain('rel="api-catalog"');
+    expect(link).toContain("/.well-known/api-catalog");
+    expect(link).toContain('rel="service-desc"');
+    expect(link).toContain('rel="service-doc"');
+    const html = await res.text();
+    expect(html).toContain('rel="api-catalog"');
+    expect(html).toContain("navigator.modelContext");
+    expect(html).toContain("provideContext");
+  });
+
+  it("GET / with Accept text/markdown returns markdown", async () => {
+    const res = await app.request(
+      "/",
+      {
+        headers: {
+          Host: "opg-ivanjovic.hr",
+          Accept: "text/markdown",
+        },
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/markdown");
+    expect(res.headers.get("x-markdown-tokens")).toBeTruthy();
+    const body = await res.text();
+    expect(body.startsWith("# Polje")).toBe(true);
+    expect(body).not.toContain("<html");
+  });
+
+  it("GET /.well-known/api-catalog is a linkset", async () => {
+    const res = await app.request(
+      "/.well-known/api-catalog",
+      { headers: { Host: "opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/linkset+json");
+    const body = (await res.json()) as {
+      linkset: Array<{ anchor: string }>;
+    };
+    expect(body.linkset.length).toBeGreaterThan(0);
+    expect(body.linkset[0]?.anchor).toContain("https://opg-ivanjovic.hr");
+  });
+
+  it("GET /.well-known/mcp/server-card.json describes Polje MCP", async () => {
+    const res = await app.request(
+      "/.well-known/mcp/server-card.json",
+      { headers: { Host: "opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    const card = (await res.json()) as {
+      serverInfo: { name: string };
+      url: string;
+      transport: { type: string };
+    };
+    expect(card.serverInfo.name).toBe("polje");
+    expect(card.url).toBe("https://opg-ivanjovic.hr/mcp");
+    expect(card.transport.type).toBe("streamable-http");
+  });
+
+  it("GET /.well-known/ai-catalog.json is an ARD manifest", async () => {
+    const res = await app.request(
+      "/.well-known/ai-catalog.json",
+      { headers: { Host: "www.opg-ivanjovic.hr" } },
+      env
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    const cat = (await res.json()) as {
+      specVersion: string;
+      host: { displayName: string; identifier: string };
+      entries: Array<{
+        identifier: string;
+        url?: string;
+        data?: unknown;
+        representativeQueries: string[];
+      }>;
+    };
+    expect(cat.specVersion).toBeTruthy();
+    expect(cat.host.identifier).toBe("did:web:opg-ivanjovic.hr");
+    expect(cat.entries.length).toBeGreaterThan(0);
+    for (const e of cat.entries) {
+      expect(e.identifier.startsWith("urn:air:")).toBe(true);
+      expect(Boolean(e.url) !== Boolean(e.data)).toBe(true);
+      expect(e.representativeQueries.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("GET OAuth discovery + auth.md + skills index", async () => {
+    const host = { headers: { Host: "opg-ivanjovic.hr" } };
+    const as = await app.request(
+      "/.well-known/oauth-authorization-server",
+      host,
+      env
+    );
+    expect(as.status).toBe(200);
+    const asBody = (await as.json()) as {
+      issuer: string;
+      authorization_endpoint: string;
+      token_endpoint: string;
+      jwks_uri: string;
+      grant_types_supported: string[];
+      agent_auth: { register_uri: string };
+    };
+    expect(asBody.issuer).toBe("https://opg-ivanjovic.hr");
+    expect(asBody.agent_auth.register_uri).toContain("/auth.md");
+    expect(asBody.agent_auth.skill).toContain("/auth.md");
+    expect(asBody.agent_auth.claim_uri).toContain("/auth.md");
+
+    const oidc = await app.request(
+      "/.well-known/openid-configuration",
+      host,
+      env
+    );
+    expect(oidc.status).toBe(200);
+
+    const prm = await app.request(
+      "/.well-known/oauth-protected-resource",
+      host,
+      env
+    );
+    expect(prm.status).toBe(200);
+    const prmBody = (await prm.json()) as {
+      resource: string;
+      authorization_servers: string[];
+      scopes_supported: string[];
+    };
+    expect(prmBody.resource).toBe("https://opg-ivanjovic.hr");
+    expect(prmBody.authorization_servers).toContain("https://opg-ivanjovic.hr");
+
+    const auth = await app.request("/auth.md", host, env);
+    expect(auth.status).toBe(200);
+    expect(auth.headers.get("content-type")).toContain("text/markdown");
+    const authMd = await auth.text();
+    expect(authMd).toMatch(/^# auth\.md/m);
+
+    const skills = await app.request(
+      "/.well-known/agent-skills/index.json",
+      host,
+      env
+    );
+    expect(skills.status).toBe(200);
+    const idx = (await skills.json()) as {
+      $schema: string;
+      skills: Array<{ name: string; digest: string; url: string }>;
+    };
+    expect(idx.$schema).toContain("agentskills.io/discovery/0.2.0");
+    const farm = idx.skills.find((s) => s.name === "polje-farm");
+    expect(farm).toBeTruthy();
+    const skillRes = await app.request(farm!.url, host, env);
+    const skillBody = await skillRes.text();
+    const { sha256Hex } = await import("../src/lib/agent-discovery");
+    expect(farm!.digest).toBe(`sha256:${await sha256Hex(skillBody)}`);
+  });
+
+  it("DNS-AID zone lists ServiceMode index and MCP names", async () => {
+    const { dnsAidZonePresentation, DNS_AID_NAMES } = await import("../src/lib/dns-aid");
+    const zone = dnsAidZonePresentation();
+    expect(zone).toContain("_index._agents.opg-ivanjovic.hr");
+    expect(zone).toContain("_mcp._agents.opg-ivanjovic.hr");
+    expect(zone).toContain("IN  HTTPS");
+    expect(zone).toContain("IN  SVCB");
+    expect(zone).toContain("mandatory=alpn,port");
+    expect(zone).not.toContain("_a2a._agents");
+    expect(DNS_AID_NAMES).toContain("_catalog._agents");
   });
 
   it("GET /v1/plan lists phases", async () => {
@@ -601,6 +1218,68 @@ describe("polje M1", () => {
     };
     expect(body.phases.some((p) => p.title === "Civil works")).toBe(true);
     expect(body.phases[0]?.amount_cents).toBe(0);
+  });
+
+  it("GET /v1/plan/calendar.ics is a calendar", async () => {
+    const res = await app.request("/v1/plan/calendar.ics?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") || "").toContain("text/calendar");
+    const ics = await res.text();
+    expect(ics).toContain("BEGIN:VCALENDAR");
+    expect(ics).toContain("Civil works");
+  });
+
+  it("POST /v1/plan/tasks writes a todo without confirm", async () => {
+    const res = await app.request(
+      "/v1/plan/tasks",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          title: "Call liner shop",
+          due_on: "2026-10-02",
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { task: { status: string; due_on: string } };
+    expect(body.task.status).toBe("todo");
+    expect(body.task.due_on).toBe("2026-10-02");
+  });
+
+  it("POST /v1/plan/orders ordered without confirm → proposal", async () => {
+    const res = await app.request(
+      "/v1/plan/orders",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          title: "Fake liner",
+          amount_eur: 12,
+          status: "ordered",
+          confirm: false,
+        }),
+      },
+      env
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { proposal: boolean };
+    expect(body.proposal).toBe(true);
+  });
+
+  it("get_plan MCP returns where + phases", async () => {
+    const { runTool } = await import("../src/mcp/tools");
+    const result = await runTool(
+      "get_plan",
+      { env, actor: "agent:mcp", allowConfirm: true },
+      { farm_slug: "ivan-jovic" }
+    );
+    expect(result.error).toBeUndefined();
+    expect(Array.isArray((result as { phases: unknown[] }).phases)).toBe(true);
+    expect((result as { where: { timezone: string } }).where.timezone).toBe(
+      "Europe/Zagreb"
+    );
   });
 
   it("GET /v1/trello returns board shape", async () => {
@@ -700,6 +1379,22 @@ describe("polje M1", () => {
       body.wx
     );
     expect(body).toHaveProperty("temp_c");
+  });
+
+  it("GET /v1/maps/sample requires lat lon", async () => {
+    const res = await app.request("/v1/maps/sample?farm=ivan-jovic", {}, env);
+    expect([400, 503]).toContain(res.status);
+    const body = (await res.json()) as { error: string };
+    expect(["bad_lat_lon", "maps_not_configured"]).toContain(body.error);
+  });
+
+  it("GET /v1/maps/sample rejects bad coordinates", async () => {
+    const res = await app.request(
+      "/v1/maps/sample?farm=ivan-jovic&lat=99&lon=16",
+      {},
+      env
+    );
+    expect([400, 503]).toContain(res.status);
   });
 
   it("GET /fonts/D-DIN.woff2 serves the chassis typeface", async () => {
@@ -848,6 +1543,18 @@ describe("polje M1", () => {
     expect(body.live.starlink).toBe("up");
     expect(body.live.metrics["soil-n-1:moisture"].value).toBe(0.33);
   });
+
+  it("FarmRuntime broadcasts land events", async () => {
+    const stub = farmStub(env, "ivan-jovic");
+    const res = await stub.fetch(
+      new Request("https://do/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "land", plot: { id: "x" } }),
+      })
+    );
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("polje M3 cameras", () => {
@@ -859,7 +1566,11 @@ describe("polje M3 cameras", () => {
     const res = await app.request("/v1/cameras?farm=ivan-jovic", {}, env);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      cameras: Array<{ id: string; snapshot: unknown }>;
+      cameras: Array<{
+        id: string;
+        snapshot: unknown;
+        analog?: { youtube_id: string; embed_url: string };
+      }>;
     };
     expect(body.cameras.length).toBe(3);
     expect(body.cameras.map((c) => c.id).sort()).toEqual([
@@ -867,6 +1578,9 @@ describe("polje M3 cameras", () => {
       "cam-hay",
       "cam-yard",
     ]);
+    const yard = body.cameras.find((c) => c.id === "cam-yard");
+    expect(yard?.analog?.youtube_id).toBe("N4kJ8kqunLA");
+    expect(yard?.analog?.embed_url).toContain("youtube.com/embed");
   });
 
   it("POST /v1/cameras/:id/snapshot without token → 401", async () => {
@@ -949,6 +1663,74 @@ describe("polje M3 cameras", () => {
     const html = await res.text();
     expect(html).toContain("Eyes");
     expect(html).toContain("Ledger");
+    expect(html).toContain("youtube.com/embed");
+    expect(html).toContain("analog_lonjsko");
+  });
+});
+
+describe("polje analog climate + eyes", () => {
+  beforeAll(async () => {
+    await migrateAndSeed();
+  });
+
+  it("ANALOG_LIVE is off in tests", () => {
+    expect(analogLiveOn(env)).toBe(false);
+  });
+
+  it("synthetic batch maps Open-Meteo-like obs onto farm devices", () => {
+    const obs = syntheticObservation(new Date("2026-09-01T12:00:00+02:00"));
+    const batch = buildAnalogBatch("ivan-jovic", obs, new Date("2026-09-01T10:00:00Z"));
+    expect(isAnalogBatchId(batch.batch_id)).toBe(true);
+    expect(batch.health?.starlink).toBe("up");
+    expect(batch.health?.nvr).toBe("unconfigured");
+    const ids = batch.readings.map((r) => `${r.device_id}:${r.metric}`);
+    expect(ids).toContain("temp-yard-1:temp_c");
+    expect(ids).toContain("fps-sn-1:rh");
+    expect(ids).toContain("soil-n-1:moisture");
+    expect(ids).toContain("inv-1:w");
+    expect(ids).toContain("ups-1:battery_pct");
+    expect(ids).toContain("temp-house-1:temp_c");
+    expect(analogBatchId("ivan-jovic", 0).startsWith("analog-ivan-jovic-")).toBe(true);
+  });
+
+  it("wxFromWmoCode and wxFromLive read analog metrics", () => {
+    expect(wxFromWmoCode(0)).toBe("clear");
+    expect(wxFromWmoCode(3)).toBe("cloud");
+    expect(wxFromWmoCode(61)).toBe("rain");
+    expect(wxFromWmoCode(71)).toBe("snow");
+    expect(wxFromWmoCode(45)).toBe("fog");
+    expect(
+      wxFromLive({
+        metrics: {
+          "temp-yard-1:weather_code": {
+            metric: "weather_code",
+            value: 61,
+            device_id: "temp-yard-1",
+          },
+        },
+      })
+    ).toBe("rain");
+  });
+
+  it("analog feeds have three public YouTube IDs", () => {
+    expect(analogFeedForCamera("cam-yard")?.youtube_id).toBe("N4kJ8kqunLA");
+    expect(analogEmbedUrl("WtoxxHADnGk")).toContain("youtube.com/embed/WtoxxHADnGk");
+    const meta = analogPublicMeta();
+    expect(meta.demo).toBe(true);
+    expect(meta.climate.place).toContain("Lonjsko");
+  });
+
+  it("GET /v1/overview does not analog-ingest when ANALOG_LIVE=0", async () => {
+    const res = await app.request("/v1/overview?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      analog: null | { demo: boolean };
+      live: { last_batch_id: string | null };
+    };
+    expect(body.analog).toBeNull();
+    expect(body.live.last_batch_id === null || !String(body.live.last_batch_id).startsWith("analog-")).toBe(
+      true
+    );
   });
 });
 
@@ -1530,14 +2312,26 @@ describe("polje M8 MCP + Grok", () => {
     expect(body.error).toBe("xai_not_configured");
   });
 
-  it("GET / has Grok dock", async () => {
+  it("GET / and /land have Polje ask in nav", async () => {
     const res = await app.request("/", {}, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("grok-dock");
-    expect(html).toContain("Ask the farm");
+    expect(html).toContain("polje-ask");
+    expect(html).toContain("dock-polje");
+    expect(html).toContain("Ask Polje");
+    expect(html).not.toContain("GROK");
     expect(html).toContain("class=\"hero\"");
     expect(html).toContain("nav-toggle");
+    expect(html).toContain("nav-dock");
+    expect(html).toContain('id="op-logout"');
+    expect(html).not.toContain('id="op-gate"');
+    expect(html).not.toContain('class="op-gate"');
+
+    const land = await app.request("/land", {}, env);
+    expect(land.status).toBe(200);
+    const landHtml = await land.text();
+    expect(landHtml).toContain("polje-ask");
+    expect(landHtml).toContain("land-book");
   });
 });
 
@@ -2038,7 +2832,183 @@ describe("polje M5 irrigation", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Water");
+    expect(html).toContain("akumulacija");
+    expect(html).toContain("pond-canvas");
+    expect(html).toContain("pond-facts");
+    expect(html).toContain("pond-depth-val");
+    expect(html).toContain("dewline");
+    expect(html).toContain("pack-canvas");
     expect(html).toContain("confirm");
+  });
+
+  it("GET /v1/water/budget sizes demand and pond from plots", async () => {
+    const orchard = await app.request(
+      "/v1/plots",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Budget orchard",
+          use_type: "orchard",
+          hectares: 1,
+        }),
+      },
+      env
+    );
+    expect(orchard.status).toBe(201);
+
+    const pond = await app.request(
+      "/v1/plots",
+      {
+        method: "POST",
+        headers: authJson(),
+        body: JSON.stringify({
+          farm_slug: "ivan-jovic",
+          name: "Akumulacija test",
+          use_type: "pond",
+          hectares: 0.12,
+        }),
+      },
+      env
+    );
+    expect(pond.status).toBe(201);
+    const pondRow = (await pond.json()) as { id: string };
+
+    const res = await app.request("/v1/water/budget?farm=ivan-jovic", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      demand_year_m3: number;
+      storage_usable_m3: number;
+      ponds: Array<{ plot_id: string; geom: { usable_m3: number } }>;
+      climate: { rain_mm: number };
+    };
+    expect(body.climate.rain_mm).toBe(880);
+    expect(body.demand_year_m3).toBeGreaterThan(2000);
+    expect(body.ponds.some((p) => p.plot_id === pondRow.id)).toBe(true);
+    expect(body.storage_usable_m3).toBeGreaterThan(100);
+
+    const patch = await app.request(
+      `/v1/water/ponds/${pondRow.id}`,
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ depth_m: 3.5, bank_slope: 2 }),
+      },
+      env
+    );
+    expect(patch.status).toBe(200);
+    const after = (await patch.json()) as { geom: { depth_m: number } };
+    expect(after.geom.depth_m).toBe(3.5);
+  });
+
+  it("Dewline packer keeps concurrent drip under pump cap", () => {
+    const lines: IrrigationLine[] = [
+      {
+        lineId: "a",
+        valveBox: "",
+        valveNumber: "1",
+        zone: "East",
+        type: "drip",
+        flowM3h: 5,
+        durationMin: 30,
+      },
+      {
+        lineId: "b",
+        valveBox: "",
+        valveNumber: "2",
+        zone: "West",
+        type: "drip",
+        flowM3h: 5,
+        durationMin: 30,
+      },
+    ];
+    const params: SystemParams = {
+      mainFlowM3h: 8,
+      cyclesPerDay: 1,
+      weeklyFactor: 1,
+      monthlyFactor: 1,
+      waterPriceEurM3: 2.4,
+      rainTankM3: 50,
+      catchmentM2: 400,
+      annualRainMm: 880,
+      wellRateM3h: 0,
+      storageTankM3: 50,
+      initialTankPct: 80,
+      refillRateM3h: 0,
+      fillSource: "auto",
+      supplyMode: "tank",
+    };
+    const dry = buildSchedule(lines, params, [
+      { date: "2026-09-02", precipMm: 0, tempMaxC: 24, tempMinC: 14 },
+    ], "test");
+    expect(dry.peakFlowM3h).toBeLessThanOrEqual(8);
+    const live = dry.slots.filter((s) => !s.skipped);
+    expect(live).toHaveLength(2);
+    const overlap =
+      Math.min(live[0]!.endMin, live[1]!.endMin) >
+      Math.max(live[0]!.startMin, live[1]!.startMin);
+    expect(overlap).toBe(false);
+
+    const wet = buildSchedule(lines, params, [
+      { date: "2026-09-02", precipMm: 6, tempMaxC: 22, tempMinC: 14 },
+    ], "test");
+    for (const s of wet.slots.filter((x) => !x.skipped)) {
+      expect(s.endMin - s.startMin).toBe(12);
+    }
+
+    const boxed = buildSchedule(
+      lines.map((l) => ({ ...l, valveBox: "P-1" })),
+      { ...params, mainFlowM3h: 20 },
+      [{ date: "2026-09-02", precipMm: 0, tempMaxC: 24, tempMinC: 14 }],
+      "test"
+    );
+    const boxedLive = boxed.slots.filter((s) => !s.skipped);
+    const boxOverlap =
+      Math.min(boxedLive[0]!.endMin, boxedLive[1]!.endMin) >
+      Math.max(boxedLive[0]!.startMin, boxedLive[1]!.startMin);
+    expect(boxOverlap).toBe(false);
+  });
+
+  it("GET /v1/water/pack packs drip and skips frost", async () => {
+    const res = await app.request("/v1/water/pack?farm=ivan-jovic&precip_mm=0", {}, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      frost_excluded: boolean;
+      peak_flow_m3h: number;
+      params: { main_flow_m3h: number };
+      slots: Array<{ zone: string; skipped?: boolean }>;
+      lines: Array<{ name: string }>;
+      savings: { saved_cents: number } | null;
+    };
+    expect(body.frost_excluded).toBe(true);
+    expect(body.params.main_flow_m3h).toBe(8);
+    expect(body.lines.every((l) => !/frost/i.test(l.name))).toBe(true);
+    expect(body.slots.every((s) => !/frost/i.test(s.zone))).toBe(true);
+    expect(body.peak_flow_m3h).toBeLessThanOrEqual(body.params.main_flow_m3h);
+    expect(body.savings).not.toBeNull();
+
+    const denied = await app.request(
+      "/v1/water/pump?farm=ivan-jovic",
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ main_flow_m3h: 6 }) },
+      env
+    );
+    expect(denied.status).toBe(401);
+
+    const patch = await app.request(
+      "/v1/water/pump?farm=ivan-jovic",
+      {
+        method: "PATCH",
+        headers: authJson(),
+        body: JSON.stringify({ main_flow_m3h: 6, cycles_per_day: 2 }),
+      },
+      env
+    );
+    expect(patch.status).toBe(200);
+    const after = await app.request("/v1/water/pack?farm=ivan-jovic", {}, env);
+    const packed = (await after.json()) as { params: { main_flow_m3h: number; cycles_per_day: number } };
+    expect(packed.params.main_flow_m3h).toBe(6);
+    expect(packed.params.cycles_per_day).toBe(2);
   });
 
   it("GET /v1/irrigation/zones lists drip + frost", async () => {
@@ -2893,6 +3863,15 @@ describe("canonicalAddress", () => {
             idList: "l1",
             url: "https://trello.com/c/c1",
             pos: 1,
+            cover: {
+              scaled: [
+                {
+                  url: "https://trello.com/1/cards/c1/previews/p1/download/image.webp",
+                  width: 70,
+                  height: 50,
+                },
+              ],
+            },
           },
           { id: "c2", name: "Hidden", idList: "l2", pos: 1, closed: true },
         ],
@@ -2901,6 +3880,7 @@ describe("canonicalAddress", () => {
     );
     expect(view.lists).toHaveLength(1);
     expect(view.lists[0]?.cards[0]?.name).toBe("Civil works");
+    expect(view.lists[0]?.cards[0]?.thumb).toContain("trello.com");
   });
 
   it("normalizes envelope and header forms to farm@", () => {

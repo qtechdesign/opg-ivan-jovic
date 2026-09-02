@@ -32,6 +32,7 @@ export async function renderLogin(c: Context<AppEnv>) {
     extraCss: `.login-box { max-width: 420px; }`,
     solar: wxSkin.solar,
     wx: wxSkin.wx,
+    bodyClass: "page-login",
   })}
   <main>
     <h1 data-i18n="login_title">Sign in</h1>
@@ -43,7 +44,7 @@ export async function renderLogin(c: Context<AppEnv>) {
         <label for="password" data-i18n="login_password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required />
         <div class="actions">
-          <button class="btn-ghost" type="submit" data-i18n="login_open">Open admin</button>
+          <button class="btn-primary" type="submit" data-i18n="login_open">Open admin</button>
         </div>
         <div class="msg" id="msg"></div>
       </form>

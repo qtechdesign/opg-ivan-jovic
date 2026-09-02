@@ -44,6 +44,17 @@ function metricValue(
   return null;
 }
 
+export function wxFromWmoCode(code: number): Wx {
+  if (code === 45 || code === 48) return "fog";
+  if (code >= 71 && code <= 77) return "snow";
+  if (code === 85 || code === 86) return "snow";
+  if (code >= 51 && code <= 67) return "rain";
+  if (code >= 80 && code <= 82) return "rain";
+  if (code >= 95) return "rain";
+  if (code >= 2 && code <= 3) return "cloud";
+  return "clear";
+}
+
 export function wxFromLive(live: LiveLike | null | undefined): Wx {
   const frost = live?.frost;
   if (frost === "armed" || frost === "spraying" || frost === "watch") {
@@ -51,7 +62,13 @@ export function wxFromLive(live: LiveLike | null | undefined): Wx {
   }
   const temp = metricValue(live?.metrics, ["temp_c"]);
   const rh = metricValue(live?.metrics, ["rh", "humidity"]);
+  const precip = metricValue(live?.metrics, ["precip_mm", "precipitation"]);
+  const cloud = metricValue(live?.metrics, ["cloud_cover"]);
+  const code = metricValue(live?.metrics, ["weather_code"]);
   if (rh != null && rh >= 92 && temp != null && temp < 8) return "fog";
+  if (code != null) return wxFromWmoCode(code);
+  if (precip != null && precip >= 0.2) return "rain";
+  if (cloud != null && cloud >= 60) return "cloud";
   return "clear";
 }
 

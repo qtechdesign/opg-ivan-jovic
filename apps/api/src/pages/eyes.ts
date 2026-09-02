@@ -7,6 +7,11 @@ import {
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
 import { weatherNow } from "../lib/weather";
+import {
+  ANALOG_FEEDS,
+  analogEmbedUrl,
+  LONJSKO_POLJE_CAM_URL,
+} from "../lib/analog-feeds";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -27,6 +32,15 @@ export async function renderEyes(c: Context<AppEnv>) {
   }
 
   const wxSkin = weatherNow(farm.timezone, null);
+  const analogGrid = ANALOG_FEEDS.map((f) => {
+    const embed = analogEmbedUrl(f.youtube_id);
+    const nameKey = CAMERA_LABEL[f.camera_id] || f.camera_id;
+    return `<article class="eye">
+      <div class="eye-frame"><iframe src="${escapeHtml(embed)}" title="${escapeHtml(f.title_en)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <div class="eye-meta"><span class="name" data-i18n="${escapeHtml(nameKey)}">${escapeHtml(f.title_en)}</span><span class="when" data-i18n="analog_eyes_live">LIVE analog</span></div>
+      <div class="eye-place">${escapeHtml(f.place_en)}</div>
+    </article>`;
+  }).join("");
   return c.html(`${pageOpen({
     title: `Eyes · ${farm.name}`,
     farmName: farm.name,
@@ -34,11 +48,11 @@ export async function renderEyes(c: Context<AppEnv>) {
     defaultSlug,
     currentPath: "/eyes",
     pipHtml: `<span class="pip ok">EYES</span>`,
-    extraHead: shareHead(c.req.url, `Eyes · ${farm.name}`, "Live stills from the farm — yard, garden, hay."),
+    extraHead: shareHead(c.req.url, `Eyes · ${farm.name}`, "Analog live streams until the yard NVR is up — storks and countryside like Lonjsko polje."),
     extraCss: `
   .eye {
     border: 1px solid var(--hairline);
-    border-radius: 4px;
+    border-radius: var(--radius);
     background: color-mix(in oklab, var(--void-soft) 82%, transparent);
     overflow: hidden;
   }
@@ -47,11 +61,14 @@ export async function renderEyes(c: Context<AppEnv>) {
     background: #0a0b0e;
     position: relative;
   }
-  .eye-frame img {
+  .eye-frame img, .eye-frame iframe {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    border: 0;
+    position: absolute;
+    inset: 0;
   }
   .eye-frame .empty {
     position: absolute;
@@ -77,15 +94,22 @@ export async function renderEyes(c: Context<AppEnv>) {
     color: var(--spectral-dim);
     white-space: nowrap;
   }
+  .eye-place {
+    padding: 0 14px 12px;
+    font-size: 12px;
+    color: var(--spectral-dim);
+  }
 `,
     solar: wxSkin.solar,
     wx: wxSkin.wx,
   })}
   <main class="wide">
     <h1 data-i18n="eyes_title">Eyes</h1>
-    <p class="sub" data-i18n="eyes_sub">Live view from the farm — yard, garden, hay. Cameras on this page when the edge has them.</p>
-    <div class="eyes-grid" id="grid"></div>
-    <footer data-i18n="eyes_footer">House from 1923 · live stills</footer>
+    <p class="sub" data-i18n="eyes_sub">Analog live — yard, garden, hay. Real NVR cameras land with the civil works.</p>
+    <p class="hint" data-i18n="eyes_howto">These are public countryside and stork livestreams from a climate-similar landscape (Lonjsko polje analog), not cameras on this plot. Mute autoplay. Yard NVR replaces them when it is up.</p>
+    <div class="eyes-grid" id="grid">${analogGrid}</div>
+    <p class="hint"><a href="${LONJSKO_POLJE_CAM_URL}" rel="noreferrer" data-i18n="analog_lonjsko">Closer analog: Lonjsko polje stork village (HR)</a></p>
+    <footer data-i18n="eyes_footer">House from 1923 · analog live until NVR</footer>
   </main>
   </div>
   ${bootScripts()}
@@ -104,6 +128,7 @@ export async function renderEyes(c: Context<AppEnv>) {
         });
       } catch (e) { return ""; }
     }
+    let analogLocked = true;
     async function load() {
       const res = await fetch("/v1/cameras?farm=" + encodeURIComponent(FARM));
       if (!res.ok) {
@@ -116,26 +141,41 @@ export async function renderEyes(c: Context<AppEnv>) {
         grid.innerHTML = '<p class="dim">' + t("eyes_none") + "</p>";
         return;
       }
+      const hasAnalog = cams.some((cam) => cam.analog && cam.analog.embed_url);
+      if (hasAnalog && analogLocked) return;
+      analogLocked = hasAnalog;
       grid.innerHTML = cams.map((cam) => {
-        const has = !!cam.snapshot;
-        const bust = has ? ("?t=" + encodeURIComponent(cam.snapshot.captured_at)) : "";
-        const img = has
-          ? '<img src="/v1/cameras/' + cam.id + '/latest' + bust + '" alt="' + label(cam.id, cam.name) + '" />'
-          : '<div class="empty">' + t("eyes_no_image") + "</div>";
-        const when = has ? whenText(cam.snapshot.captured_at) : t("eyes_waiting");
+        const analog = cam.analog;
+        const place = analog
+          ? (LANG === "hr" ? analog.place_hr : analog.place_en)
+          : "";
+        let frame;
+        if (analog && analog.embed_url) {
+          frame = '<iframe src="' + analog.embed_url + '" title="' + label(cam.id, cam.name) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+        } else if (cam.snapshot) {
+          const bust = cam.snapshot.captured_at ? ("?t=" + encodeURIComponent(cam.snapshot.captured_at)) : "";
+          frame = '<a href="/v1/cameras/' + cam.id + '/latest' + bust + '" target="_blank" rel="noreferrer"><img src="/v1/cameras/' + cam.id + '/latest' + bust + '" alt="' + label(cam.id, cam.name) + '" /></a>';
+        } else {
+          frame = '<div class="empty">' + t("eyes_no_image") + "</div>";
+        }
+        const when = analog
+          ? t("analog_eyes_live")
+          : (cam.snapshot && cam.snapshot.captured_at ? whenText(cam.snapshot.captured_at) : t("eyes_waiting"));
         return (
           '<article class="eye">' +
-            '<div class="eye-frame">' + img + '</div>' +
+            '<div class="eye-frame">' + frame + '</div>' +
             '<div class="eye-meta">' +
               '<span class="name">' + label(cam.id, cam.name) + '</span>' +
               '<span class="when">' + when + '</span>' +
             '</div>' +
+            (place ? '<div class="eye-place">' + place + "</div>" : "") +
           '</article>'
         );
       }).join("");
     }
     load();
-    document.addEventListener("polje:lang", () => { load(); });
+    setInterval(load, 30000);
+    document.addEventListener("polje:lang", () => { analogLocked = false; load(); });
   </script>
 </body>
 </html>`);

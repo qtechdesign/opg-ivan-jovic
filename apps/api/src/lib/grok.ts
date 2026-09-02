@@ -159,6 +159,7 @@ export async function runGrokChat(
 Timezone: Europe/Zagreb. Currency: EUR (cents in ledger).
 Safety: You may PROPOSE high-risk actions (irrigation, heat, valves, actuators, enable_automation) but you must NEVER set confirm=true. Humans confirm.
 Do not invent sensor values. Prefer get_overview / list_readings / iot_bus_health.
+For build / procurement / todos / dates use get_plan. research_price searches the web from Cloudflare; save=true only writes research lines, never ordered.
 Never reveal tokens, camera RTSP URLs, bank data, or exact private GPS.
 Respond in Croatian first when the user writes Croatian; otherwise English. Keep answers short and concrete.
 

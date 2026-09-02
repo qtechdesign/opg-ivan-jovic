@@ -1,9 +1,11 @@
 import { DEFAULT_FARM_SLUG, defaultFarmSlug, getFarmBySlug } from "../lib/farm";
+import { ensureLegacyHolding, listHoldings, publicHolding } from "../lib/holdings";
 import { farmStub } from "../do/farm-runtime";
 import { defaultLedgerWindow, farmLedgerSummary } from "../routes/ledger";
 import { irrigationOverview } from "../routes/irrigation";
 import { climateNow } from "../lib/climate";
 import { energyNow } from "../lib/energy";
+import { planBoard } from "../lib/plan";
 
 const DOCS_API = `# Polje HTTP API (summary)
 
@@ -14,7 +16,7 @@ MCP / agent: Bearer AGENT_TOKEN
 Edge ingest: Bearer INGEST_TOKEN
 
 Key routes: /v1/health, /v1/overview, /v1/plots, /v1/plantings, /v1/cameras,
-/v1/climate/now, /v1/energy/now, /v1/ledger, /v1/plan, /v1/trello, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
+/v1/climate/now, /v1/energy/now, /v1/ledger, /v1/plan, /v1/plan/calendar.ics, /v1/trello, /v1/local/health, /v1/audit, /v1/grok/chat, /mcp
 
 Full docs: https://docs.opg-ivanjovic.hr/api
 `;
@@ -102,7 +104,7 @@ export async function readPoljeResource(
 
   if (kind === "plots") {
     const { results: plots } = await env.DB.prepare(
-      `SELECT id, farm_id, name, hectares, use_type, notes FROM plots WHERE farm_id = ? ORDER BY name`
+      `SELECT id, farm_id, name, hectares, use_type, notes, geom_json, holding_id FROM plots WHERE farm_id = ? ORDER BY name`
     )
       .bind(farm.id)
       .all();
@@ -112,9 +114,15 @@ export async function readPoljeResource(
     )
       .bind(farm.id)
       .all();
+    await ensureLegacyHolding(env.DB, farm);
+    const holdings = (await listHoldings(env.DB, farm.id)).map(publicHolding);
     return {
       mimeType: "application/json",
-      text: JSON.stringify({ plots: plots ?? [], plantings: plantings ?? [] }),
+      text: JSON.stringify({
+        holdings,
+        plots: plots ?? [],
+        plantings: plantings ?? [],
+      }),
     };
   }
 
@@ -251,6 +259,19 @@ export async function readPoljeResource(
     };
   }
 
+  if (kind === "plan") {
+    const board = await planBoard(env.DB, farm.id, farm.timezone);
+    return {
+      mimeType: "application/json",
+      text: JSON.stringify({
+        farm_id: farm.id,
+        slug: farm.slug,
+        timezone: farm.timezone,
+        ...board,
+      }),
+    };
+  }
+
   return { error: "resource_not_found" };
 }
 
@@ -263,6 +284,7 @@ export const STATIC_RESOURCE_URIS = [
   `polje://farm/${DEFAULT_FARM_SLUG}/climate`,
   `polje://farm/${DEFAULT_FARM_SLUG}/irrigation`,
   `polje://farm/${DEFAULT_FARM_SLUG}/fps`,
+  `polje://farm/${DEFAULT_FARM_SLUG}/plan`,
   `polje://farm/${DEFAULT_FARM_SLUG}/ledger`,
   `polje://farm/${DEFAULT_FARM_SLUG}/audit`,
   "polje://docs/api",

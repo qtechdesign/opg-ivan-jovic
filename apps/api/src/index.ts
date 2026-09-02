@@ -4,6 +4,7 @@ import { api } from "./routes/api";
 import { mailApi } from "./routes/mail";
 import { grokApi } from "./routes/grok";
 import { irrigationApi, tickIrrigationSchedules } from "./routes/irrigation";
+import { waterBudgetApi } from "./routes/water-budget";
 import { climateApi } from "./routes/climate";
 import { ledgerApi } from "./routes/ledger";
 import { automationsApi } from "./routes/automations";
@@ -11,6 +12,12 @@ import { fpsApi } from "./routes/fps";
 import { ogApi } from "./routes/og";
 import { fontsApi } from "./routes/fonts";
 import { planApi } from "./routes/plan";
+import { seoApi } from "./routes/seo";
+import {
+  agentDiscoveryApi,
+  DISCOVERY_LINK_HEADER,
+  maybeMarkdownResponse,
+} from "./routes/agent-discovery";
 import { renderHome, renderLand } from "./pages/land";
 import { renderPlan } from "./pages/plan";
 import { renderEyes } from "./pages/eyes";
@@ -26,6 +33,7 @@ import { FarmRuntime, farmStub } from "./do/farm-runtime";
 import { defaultFarmSlug, getFarm } from "./lib/farm";
 import { ingestInboundEmail } from "./lib/mail";
 import { maybeRunMorningBriefing } from "./lib/briefing";
+import { maybeIngestAnalog } from "./lib/analog";
 import { writeMetric } from "./lib/kv";
 import {
   createPoljeMcpHandler,
@@ -36,10 +44,36 @@ type Bindings = Cloudflare.Env;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+app.use("*", async (c, next) => {
+  if (c.req.method === "GET") {
+    const md = maybeMarkdownResponse(c.req.path, c.req.header("Accept"));
+    if (md) {
+      return c.body(md.body, 200, {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "x-markdown-tokens": String(md.tokens),
+        Vary: "Accept",
+        Link: DISCOVERY_LINK_HEADER,
+      });
+    }
+  }
+  await next();
+  if (c.req.method !== "GET") return;
+  const ct = c.res.headers.get("content-type") ?? "";
+  if (c.req.path === "/" || ct.includes("text/html")) {
+    c.header("Link", DISCOVERY_LINK_HEADER);
+    const vary = c.res.headers.get("Vary");
+    if (!vary || !/\bAccept\b/i.test(vary)) {
+      c.header("Vary", vary ? `${vary}, Accept` : "Accept");
+    }
+  }
+});
+
+app.route("/", agentDiscoveryApi);
 app.route("/", api);
 app.route("/", mailApi);
 app.route("/", grokApi);
 app.route("/", irrigationApi);
+app.route("/", waterBudgetApi);
 app.route("/", climateApi);
 app.route("/", ledgerApi);
 app.route("/", automationsApi);
@@ -47,6 +81,7 @@ app.route("/", fpsApi);
 app.route("/", ogApi);
 app.route("/", fontsApi);
 app.route("/", planApi);
+app.route("/", seoApi);
 app.get("/", (c) => renderHome(c));
 app.get("/login", (c) => renderLogin(c));
 app.get("/eyes", (c) => renderEyes(c));
@@ -139,6 +174,12 @@ async function handleScheduled(
       }
     } catch (err) {
       console.error("solar settle cron error", err);
+    }
+    try {
+      const analog = await maybeIngestAnalog(env, farm.slug);
+      if (analog) console.log("analog climate ingest", farm.slug);
+    } catch (err) {
+      console.error("analog climate cron error", err);
     }
   } else {
     console.warn("cron: farm not found", slug);

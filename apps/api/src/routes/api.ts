@@ -1,10 +1,16 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import {
+  CreateHoldingSchema,
   CreatePlantingSchema,
   CreatePlotSchema,
+  DeleteHoldingSchema,
+  DeletePlotSchema,
   IngestBatchSchema,
+  PatchFarmExtentSchema,
   PatchFarmFlagsSchema,
+  PatchHoldingSchema,
   PatchPlantingSchema,
+  PatchPlotSchema,
   type Planting,
   type Plot,
 } from "@polje/schema";
@@ -13,21 +19,64 @@ import { writeAudit } from "../lib/audit";
 import { defaultFarmSlug, farmSlugFromQuery, getFarm, getFarmBySlug } from "../lib/farm";
 import {
   RL_LOGIN,
+  RL_MAPS,
   clientIp,
   consumeRateLimit,
+  farmCacheKey,
   getFlags,
   rlLoginKey,
+  rlMapsKey,
   setFlags,
   writeMetric,
 } from "../lib/kv";
-import { farmStub } from "../do/farm-runtime";
+import { sampleMapsPoint } from "../lib/maps-sample";
+import { broadcastLand, farmStub } from "../do/farm-runtime";
 import { irrigationOverview } from "./irrigation";
 import { climateOverview } from "../lib/climate";
 import { energyOverview } from "../lib/energy";
 import type { FarmLiveState } from "../do/farm-runtime";
 import { weatherNow } from "../lib/weather";
+import { parsePlotPolygon } from "../lib/geom";
+import {
+  assignPlotHolding,
+  ensureLegacyHolding,
+  listHoldings,
+  plotFitsHoldings,
+  publicHolding,
+  syncFarmExtent,
+  type HoldingRow,
+} from "../lib/holdings";
+import {
+  analogLiveOn,
+  analogPublicMeta,
+  loadLiveWithAnalog,
+} from "../lib/analog";
+import {
+  analogEmbedUrl,
+  analogFeedForCamera,
+  analogThumbUrl,
+} from "../lib/analog-feeds";
+import { maybeEnsurePondPlot } from "./water-budget";
 
 type AppEnv = { Bindings: Cloudflare.Env };
+
+function pingLand(
+  c: Context<AppEnv>,
+  farmId: string,
+  payload: Record<string, unknown>
+) {
+  const origin = c.req.header("X-Polje-Land") || undefined;
+  const run = broadcastLand(
+    c.env,
+    farmId,
+    origin ? { origin, ...payload } : payload
+  );
+  try {
+    c.executionCtx.waitUntil(run);
+  } catch {
+    void run;
+  }
+}
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -162,13 +211,266 @@ api.get("/v1/farms/:slug", async (c) => {
   }
 
   const { results: plots } = await c.env.DB.prepare(
-    `SELECT id, farm_id, name, hectares, use_type, notes
+    `SELECT id, farm_id, name, hectares, use_type, notes, geom_json
      FROM plots WHERE farm_id = ? ORDER BY name`
   )
     .bind(farm.id)
     .all<Plot>();
 
   return c.json({ ...farm, plots: plots ?? [] });
+});
+
+api.patch("/v1/farms/:slug/extent", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = PatchFarmExtentSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const slug = c.req.param("slug");
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
+
+  await ensureLegacyHolding(c.env.DB, farm);
+  const rows = await listHoldings(c.env.DB, farm.id);
+  const extent_name =
+    parsed.data.extent_name !== undefined && parsed.data.extent_name
+      ? parsed.data.extent_name
+      : farm.extent_name || farm.name;
+
+  let extent_json: string | null = null;
+  let extent_ha: number | null = null;
+  if (parsed.data.extent_json) {
+    const g = parsePlotPolygon(parsed.data.extent_json);
+    if ("error" in g) return c.json({ error: "bad_geom", details: g.error }, 400);
+    extent_json = g.geojson;
+    extent_ha = g.hectares;
+    const named = rows.find((h) => h.name === extent_name);
+    const target = named ?? (rows.length === 1 ? rows[0] : null);
+    if (target) {
+      await c.env.DB.prepare(
+        `UPDATE holdings SET name = ?, geom_json = ?, hectares = ? WHERE id = ? AND farm_id = ?`
+      )
+        .bind(extent_name, extent_json, extent_ha, target.id, farm.id)
+        .run();
+    } else {
+      await c.env.DB.prepare(
+        `INSERT INTO holdings (id, farm_id, name, notes, geom_json, hectares, created_at)
+         VALUES (?, ?, ?, NULL, ?, ?, ?)`
+      )
+        .bind(crypto.randomUUID(), farm.id, extent_name, extent_json, extent_ha, new Date().toISOString())
+        .run();
+    }
+  } else if (rows.length === 1 && rows[0]) {
+    await c.env.DB.prepare(`DELETE FROM holdings WHERE id = ? AND farm_id = ?`)
+      .bind(rows[0].id, farm.id)
+      .run();
+    await c.env.DB.prepare(`UPDATE plots SET holding_id = NULL WHERE holding_id = ?`)
+      .bind(rows[0].id)
+      .run();
+  }
+
+  await syncFarmExtent(c.env.DB, farm.id);
+
+  if (c.env.KV) {
+    try {
+      await c.env.KV.delete(farmCacheKey(farm.slug));
+    } catch {
+      /* cache is best-effort */
+    }
+  }
+
+  const after = {
+    slug: farm.slug,
+    extent_name: extent_json ? extent_name : farm.extent_name,
+    extent_json,
+    extent_ha,
+  };
+  await writeAudit(c.env.DB, {
+    farm_id: farm.id,
+    actor: "user:operator",
+    action: "farm.extent",
+    entity: `farm:${farm.slug}`,
+    before: {
+      extent_json: farm.extent_json ?? null,
+      extent_name: farm.extent_name ?? null,
+      extent_ha: farm.extent_ha ?? null,
+    },
+    after,
+  });
+
+  return c.json(after);
+});
+
+async function holdingsForFarm(db: D1Database, farm: { id: string; extent_json?: string | null; extent_name?: string | null; name: string; extent_ha?: number | null }) {
+  await ensureLegacyHolding(db, farm);
+  const rows = await listHoldings(db, farm.id);
+  return rows.map(publicHolding);
+}
+
+api.get("/v1/holdings", async (c) => {
+  const slug = farmSlugFromQuery(c);
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) return c.json({ error: "farm_not_found", slug }, 404);
+  const holdings = await holdingsForFarm(c.env.DB, farm);
+  return c.json({ farm_id: farm.id, slug: farm.slug, holdings });
+});
+
+api.post("/v1/holdings", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = CreateHoldingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+  const farm = await getFarmBySlug(c.env.DB, parsed.data.farm_slug);
+  if (!farm) return c.json({ error: "farm_not_found", slug: parsed.data.farm_slug }, 404);
+
+  let geom_json: string | null = null;
+  let hectares: number | null = null;
+  if (parsed.data.geom_json) {
+    const g = parsePlotPolygon(parsed.data.geom_json);
+    if ("error" in g) return c.json({ error: "bad_geom", details: g.error }, 400);
+    geom_json = g.geojson;
+    hectares = g.hectares;
+  }
+  const row: HoldingRow = {
+    id: crypto.randomUUID(),
+    farm_id: farm.id,
+    name: parsed.data.name,
+    notes: parsed.data.notes ?? null,
+    geom_json,
+    hectares,
+    created_at: new Date().toISOString(),
+  };
+  await c.env.DB.prepare(
+    `INSERT INTO holdings (id, farm_id, name, notes, geom_json, hectares, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(row.id, row.farm_id, row.name, row.notes, row.geom_json, row.hectares, row.created_at)
+    .run();
+  await syncFarmExtent(c.env.DB, farm.id);
+  if (c.env.KV) {
+    try {
+      await c.env.KV.delete(farmCacheKey(farm.slug));
+    } catch {
+      /* cache is best-effort */
+    }
+  }
+  await writeAudit(c.env.DB, {
+    farm_id: farm.id,
+    actor: "user:operator",
+    action: "holding.create",
+    entity: `holding:${row.id}`,
+    after: row,
+  });
+  pingLand(c, farm.id, { reload: true, holding: publicHolding(row) });
+  return c.json(publicHolding(row), 201);
+});
+
+api.patch("/v1/holdings/:id", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = PatchHoldingSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+  const id = c.req.param("id");
+  const before = await c.env.DB.prepare(
+    `SELECT id, farm_id, name, notes, geom_json, hectares, created_at FROM holdings WHERE id = ?`
+  )
+    .bind(id)
+    .first<HoldingRow>();
+  if (!before) return c.json({ error: "holding_not_found" }, 404);
+
+  let geom_json = before.geom_json;
+  let hectares = before.hectares;
+  if (parsed.data.geom_json !== undefined) {
+    if (parsed.data.geom_json === null || parsed.data.geom_json === "") {
+      geom_json = null;
+      hectares = null;
+    } else {
+      const g = parsePlotPolygon(parsed.data.geom_json);
+      if ("error" in g) return c.json({ error: "bad_geom", details: g.error }, 400);
+      geom_json = g.geojson;
+      hectares = g.hectares;
+    }
+  }
+  const after: HoldingRow = {
+    ...before,
+    name: parsed.data.name ?? before.name,
+    notes: parsed.data.notes !== undefined ? parsed.data.notes : before.notes,
+    geom_json,
+    hectares,
+  };
+  await c.env.DB.prepare(
+    `UPDATE holdings SET name = ?, notes = ?, geom_json = ?, hectares = ? WHERE id = ?`
+  )
+    .bind(after.name, after.notes, after.geom_json, after.hectares, id)
+    .run();
+  await syncFarmExtent(c.env.DB, before.farm_id);
+  await writeAudit(c.env.DB, {
+    farm_id: before.farm_id,
+    actor: "user:operator",
+    action: "holding.patch",
+    entity: `holding:${id}`,
+    before,
+    after,
+  });
+  pingLand(c, before.farm_id, { holding: publicHolding(after) });
+  return c.json(publicHolding(after));
+});
+
+api.delete("/v1/holdings/:id", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+  let body: unknown = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    body = {};
+  }
+  const parsed = DeleteHoldingSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: "confirm_required" }, 400);
+  const id = c.req.param("id");
+  const before = await c.env.DB.prepare(
+    `SELECT id, farm_id, name, notes, geom_json, hectares, created_at FROM holdings WHERE id = ?`
+  )
+    .bind(id)
+    .first<HoldingRow>();
+  if (!before) return c.json({ error: "holding_not_found" }, 404);
+  await c.env.DB.prepare(`UPDATE plots SET holding_id = NULL WHERE holding_id = ?`).bind(id).run();
+  await c.env.DB.prepare(`DELETE FROM holdings WHERE id = ?`).bind(id).run();
+  await syncFarmExtent(c.env.DB, before.farm_id);
+  await writeAudit(c.env.DB, {
+    farm_id: before.farm_id,
+    actor: "user:operator",
+    action: "holding.delete",
+    entity: `holding:${id}`,
+    before,
+  });
+  pingLand(c, before.farm_id, { reload: true, holding: { id } });
+  return c.json({ ok: true, id });
 });
 
 api.get("/v1/plots", async (c) => {
@@ -179,13 +481,71 @@ api.get("/v1/plots", async (c) => {
   }
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, farm_id, name, hectares, use_type, notes
+    `SELECT id, farm_id, name, hectares, use_type, notes, geom_json, holding_id
      FROM plots WHERE farm_id = ? ORDER BY name`
   )
     .bind(farm.id)
     .all<Plot>();
 
-  return c.json({ farm_id: farm.id, slug: farm.slug, plots: results ?? [] });
+  const { results: plantings } = await c.env.DB.prepare(
+    `SELECT p.id, p.plot_id, p.crop, p.variety, p.stage
+     FROM plantings p JOIN plots pl ON pl.id = p.plot_id
+     WHERE pl.farm_id = ? ORDER BY p.crop`
+  )
+    .bind(farm.id)
+    .all<{
+      id: string;
+      plot_id: string;
+      crop: string;
+      variety: string | null;
+      stage: string | null;
+    }>();
+
+  const { results: zones } = await c.env.DB.prepare(
+    `SELECT id, plot_id, name, kind FROM irrigation_zones
+     WHERE farm_id = ? AND plot_id IS NOT NULL`
+  )
+    .bind(farm.id)
+    .all<{ id: string; plot_id: string; name: string; kind: string }>();
+
+  const plantsBy = new Map<string, Array<{ id: string; crop: string; variety: string | null; stage: string | null }>>();
+  for (const row of plantings ?? []) {
+    const list = plantsBy.get(row.plot_id) ?? [];
+    list.push({ id: row.id, crop: row.crop, variety: row.variety, stage: row.stage });
+    plantsBy.set(row.plot_id, list);
+  }
+  const zonesBy = new Map<string, Array<{ id: string; name: string; kind: string }>>();
+  for (const row of zones ?? []) {
+    const list = zonesBy.get(row.plot_id) ?? [];
+    list.push({ id: row.id, name: row.name, kind: row.kind });
+    zonesBy.set(row.plot_id, list);
+  }
+
+  const plots = (results ?? []).map((p) => {
+    let hectares = p.hectares ?? null;
+    if (p.geom_json) {
+      const g = parsePlotPolygon(p.geom_json);
+      if (!("error" in g)) hectares = g.hectares;
+    } else {
+      hectares = null;
+    }
+    return {
+      ...p,
+      hectares,
+      plantings: plantsBy.get(p.id) ?? [],
+      zones: zonesBy.get(p.id) ?? [],
+    };
+  });
+
+  const holdings = await holdingsForFarm(c.env.DB, farm);
+
+  return c.json({
+    farm_id: farm.id,
+    slug: farm.slug,
+    holdings,
+    holding: holdings[0] ?? null,
+    plots,
+  });
 });
 
 api.post("/v1/plots", async (c) => {
@@ -210,18 +570,34 @@ api.post("/v1/plots", async (c) => {
   }
 
   const id = crypto.randomUUID();
+  let geom_json: string | null = null;
+  let hectares = parsed.data.hectares ?? null;
+  let holding_id = parsed.data.holding_id ?? null;
+  if (parsed.data.geom_json) {
+    const g = parsePlotPolygon(parsed.data.geom_json);
+    if ("error" in g) return c.json({ error: "bad_geom", details: g.error }, 400);
+    geom_json = g.geojson;
+    if (parsed.data.hectares === undefined) hectares = g.hectares;
+    await ensureLegacyHolding(c.env.DB, farm);
+    const holdings = await listHoldings(c.env.DB, farm.id);
+    const fit = plotFitsHoldings(holdings, geom_json, holding_id);
+    if ("error" in fit) return c.json({ error: fit.error }, 400);
+    holding_id = fit.holding_id;
+  }
   const plot: Plot = {
     id,
     farm_id: farm.id,
     name: parsed.data.name,
-    hectares: parsed.data.hectares ?? null,
+    hectares,
     use_type: parsed.data.use_type ?? null,
     notes: parsed.data.notes ?? null,
+    geom_json,
+    holding_id,
   };
 
   await c.env.DB.prepare(
-    `INSERT INTO plots (id, farm_id, name, hectares, use_type, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO plots (id, farm_id, name, hectares, use_type, notes, geom_json, holding_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       plot.id,
@@ -229,7 +605,9 @@ api.post("/v1/plots", async (c) => {
       plot.name,
       plot.hectares,
       plot.use_type,
-      plot.notes
+      plot.notes,
+      plot.geom_json,
+      plot.holding_id ?? null
     )
     .run();
 
@@ -241,7 +619,152 @@ api.post("/v1/plots", async (c) => {
     after: plot,
   });
 
+  await maybeEnsurePondPlot(c.env.DB, farm.id, id, plot.use_type);
+
+  pingLand(c, farm.id, { reload: true, plot });
   return c.json(plot, 201);
+});
+
+api.patch("/v1/plots/:id", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const parsed = PatchPlotSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "validation", details: parsed.error.flatten() }, 400);
+  }
+
+  const id = c.req.param("id");
+  const before = await c.env.DB.prepare(
+    `SELECT id, farm_id, name, hectares, use_type, notes, geom_json, holding_id FROM plots WHERE id = ?`
+  )
+    .bind(id)
+    .first<Plot>();
+  if (!before) return c.json({ error: "plot_not_found" }, 404);
+
+  let geom_json = before.geom_json ?? null;
+  let hectares = before.hectares ?? null;
+  let holding_id = before.holding_id ?? null;
+  if (parsed.data.holding_id !== undefined) holding_id = parsed.data.holding_id;
+  if (parsed.data.geom_json !== undefined) {
+    if (parsed.data.geom_json === null || parsed.data.geom_json === "") {
+      geom_json = null;
+      if (parsed.data.hectares === undefined) hectares = null;
+    } else {
+      const g = parsePlotPolygon(parsed.data.geom_json);
+      if ("error" in g) return c.json({ error: "bad_geom", details: g.error }, 400);
+      geom_json = g.geojson;
+      if (parsed.data.hectares === undefined) hectares = g.hectares;
+      const holdings = await listHoldings(c.env.DB, before.farm_id);
+      const fit = assignPlotHolding(holdings, geom_json, holding_id, {
+        existing: Boolean(before.geom_json),
+      });
+      if ("error" in fit) return c.json({ error: fit.error }, 400);
+      holding_id = fit.holding_id;
+    }
+  }
+  if (parsed.data.hectares !== undefined) hectares = parsed.data.hectares;
+
+  const after: Plot = {
+    ...before,
+    name: parsed.data.name ?? before.name,
+    use_type:
+      parsed.data.use_type !== undefined ? parsed.data.use_type : before.use_type,
+    notes: parsed.data.notes !== undefined ? parsed.data.notes : before.notes,
+    hectares,
+    geom_json,
+    holding_id,
+  };
+
+  await c.env.DB.prepare(
+    `UPDATE plots SET name = ?, hectares = ?, use_type = ?, notes = ?, geom_json = ?, holding_id = ?
+     WHERE id = ?`
+  )
+    .bind(
+      after.name,
+      after.hectares,
+      after.use_type,
+      after.notes,
+      after.geom_json,
+      after.holding_id ?? null,
+      id
+    )
+    .run();
+
+  await writeAudit(c.env.DB, {
+    farm_id: before.farm_id,
+    actor: "user:operator",
+    action: "plot.patch",
+    entity: `plot:${id}`,
+    before,
+    after,
+  });
+
+  await maybeEnsurePondPlot(c.env.DB, before.farm_id, id, after.use_type);
+
+  pingLand(c, before.farm_id, { plot: after });
+  return c.json(after);
+});
+
+api.delete("/v1/plots/:id", async (c) => {
+  const denied = await requireOperator(c);
+  if (denied) return denied;
+
+  let body: unknown = {};
+  try {
+    const text = await c.req.text();
+    if (text) body = JSON.parse(text);
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = DeletePlotSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "confirm_required" }, 400);
+  }
+
+  const id = c.req.param("id");
+  const before = await c.env.DB.prepare(
+    `SELECT id, farm_id, name, hectares, use_type, notes, geom_json FROM plots WHERE id = ?`
+  )
+    .bind(id)
+    .first<Plot>();
+  if (!before) return c.json({ error: "plot_not_found" }, 404);
+
+  const planting = await c.env.DB.prepare(
+    `SELECT id FROM plantings WHERE plot_id = ? LIMIT 1`
+  )
+    .bind(id)
+    .first<{ id: string }>();
+  if (planting) return c.json({ error: "plot_has_plantings" }, 409);
+
+  await c.env.DB.prepare(
+    `UPDATE irrigation_zones SET plot_id = NULL WHERE plot_id = ?`
+  )
+    .bind(id)
+    .run();
+  await c.env.DB.prepare(`UPDATE growth_media SET plot_id = NULL WHERE plot_id = ?`)
+    .bind(id)
+    .run();
+  await c.env.DB.prepare(`DELETE FROM plots WHERE id = ?`).bind(id).run();
+
+  await writeAudit(c.env.DB, {
+    farm_id: before.farm_id,
+    actor: "user:operator",
+    action: "plot.delete",
+    entity: `plot:${id}`,
+    before,
+    after: null,
+  });
+
+  pingLand(c, before.farm_id, { reload: true, plot: { id } });
+  return c.json({ ok: true, id });
 });
 
 api.get("/v1/plantings", async (c) => {
@@ -286,7 +809,7 @@ api.post("/v1/plantings", async (c) => {
   }
 
   const plot = await c.env.DB.prepare(
-    `SELECT id, farm_id, name, hectares, use_type, notes FROM plots WHERE id = ?`
+    `SELECT id, farm_id, name, hectares, use_type, notes, geom_json FROM plots WHERE id = ?`
   )
     .bind(parsed.data.plot_id)
     .first<Plot>();
@@ -720,11 +1243,7 @@ api.get("/v1/overview", async (c) => {
     return c.json({ error: "farm_not_found", slug }, 404);
   }
 
-  const stub = farmStub(c.env, farm.slug);
-  const liveRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const live = await liveRes.json();
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
 
   const { results: plots } = await c.env.DB.prepare(
     `SELECT id, name, use_type FROM plots WHERE farm_id = ? ORDER BY name`
@@ -777,7 +1296,43 @@ api.get("/v1/overview", async (c) => {
     climate,
     energy,
     flags,
+    analog: analogLiveOn(c.env) ? analogPublicMeta() : null,
   });
+});
+
+api.get("/v1/maps/sample", async (c) => {
+  const slug = farmSlugFromQuery(c);
+  const farm = await getFarmBySlug(c.env.DB, slug);
+  if (!farm) {
+    return c.json({ error: "farm_not_found", slug }, 404);
+  }
+  const key = (c.env.GOOGLE_MAPS_API_KEY || "").trim();
+  if (!key) {
+    return c.json({ error: "maps_not_configured" }, 503);
+  }
+  const lat = Number(c.req.query("lat"));
+  const lon = Number(c.req.query("lon"));
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    return c.json({ error: "bad_lat_lon" }, 400);
+  }
+  const ip = clientIp(c);
+  const rl = await consumeRateLimit(
+    c.env.KV,
+    rlMapsKey(ip),
+    RL_MAPS.limit,
+    RL_MAPS.windowSec
+  );
+  if (!rl.allowed) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "rate_limited" }, 429);
+  }
+  const lang = c.req.query("lang") === "hr" ? "hr" : "en";
+  try {
+    const sample = await sampleMapsPoint(key, lat, lon, lang);
+    return c.json(sample);
+  } catch (err) {
+    return c.json({ error: "maps_sample_failed", detail: String(err) }, 502);
+  }
 });
 
 api.get("/v1/weather/now", async (c) => {
@@ -786,11 +1341,8 @@ api.get("/v1/weather/now", async (c) => {
   if (!farm) {
     return c.json({ error: "farm_not_found", slug }, 404);
   }
-  const stub = farmStub(c.env, farm.slug);
-  const liveRes = await stub.fetch(
-    new Request(`https://do/overview?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  const live = (await liveRes.json()) as FarmLiveState;
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
+  c.header("Access-Control-Allow-Origin", "*");
   return c.json(weatherNow(farm.timezone, live));
 });
 
@@ -801,13 +1353,18 @@ api.get("/v1/local/health", async (c) => {
     return c.json({ error: "farm_not_found", slug }, 404);
   }
 
-  const stub = farmStub(c.env, farm.slug);
-  const res = await stub.fetch(
-    new Request(`https://do/health?farm_id=${encodeURIComponent(farm.slug)}`)
-  );
-  return new Response(res.body, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
+  const live = await loadLiveWithAnalog(c.env, farm.slug);
+  return c.json({
+    farm_id: live.farm_id,
+    starlink: live.starlink,
+    edge: live.edge,
+    mqtt: live.mqtt,
+    gateway: live.gateway,
+    nvr: live.nvr,
+    frost: live.frost,
+    edge_seen_at: live.edge_seen_at,
+    last_ingest_at: live.last_ingest_at,
+    last_batch_id: live.last_batch_id,
   });
 });
 
@@ -864,8 +1421,11 @@ api.get("/v1/cameras", async (c) => {
   return c.json({
     farm_id: farm.id,
     slug: farm.slug,
+    analog_note:
+      "Public analog livestreams until this farm's NVR is up. Not cameras on this plot.",
     cameras: (cameras ?? []).map((cam) => {
       const s = snapMap.get(cam.id);
+      const analog = analogFeedForCamera(cam.id);
       return {
         ...cam,
         snapshot: s
@@ -874,6 +1434,25 @@ api.get("/v1/cameras", async (c) => {
               source: s.source,
               captured_at: s.captured_at,
               url: `/v1/cameras/${cam.id}/latest`,
+            }
+          : analog
+            ? {
+                r2_key: null,
+                source: "analog",
+                captured_at: null,
+                url: analogThumbUrl(analog.youtube_id),
+              }
+            : null,
+        analog: analog
+          ? {
+              youtube_id: analog.youtube_id,
+              embed_url: analogEmbedUrl(analog.youtube_id),
+              thumb_url: analogThumbUrl(analog.youtube_id),
+              watch_url: `https://www.youtube.com/watch?v=${analog.youtube_id}`,
+              place_en: analog.place_en,
+              place_hr: analog.place_hr,
+              title_en: analog.title_en,
+              title_hr: analog.title_hr,
             }
           : null,
       };

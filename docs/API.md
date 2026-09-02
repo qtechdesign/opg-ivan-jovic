@@ -43,22 +43,24 @@ Defaults are all **on**. Inbound mail is never gated (no `mail_inbound` flag —
 | GET | `/v1/health` | liveness |
 | GET | `/v1/farms` | `{ farms: [{ slug, name, timezone }] }` |
 | GET | `/v1/farms/:slug` | farm + plots |
-| GET | `/v1/plots?farm=ivan-jovic` | plot list |
+| GET | `/v1/plots?farm=ivan-jovic` | `{ holdings, holding, plots }`. `holdings` are named locations (Sarampovo, …). `holding` is the first location (compat). Fields must sit inside one location once any are drawn. |
 | GET | `/v1/plantings?farm=ivan-jovic` | plantings + plot_name |
 | GET | `/v1/media?farm=ivan-jovic` | growth media metadata |
 | GET | `/v1/media/:id` | image bytes from R2 via Worker |
 | GET | `/` | overview HTML |
 | GET | `/og.jpg` | Open Graph / WhatsApp JPEG (≤200 KB). Generate with operator `POST /v1/og/generate` or `npm run og:imagine`. |
 | GET | `/hero.jpg` | Overview still (generated xAI, else OG). `POST /v1/hero/generate` or `npm run hero:imagine`. |
-| GET | `/land` | land ledger HTML (M1) |
+| GET | `/land` | land ledger HTML + field map (Google Maps satellite when `GOOGLE_MAPS_API_KEY` is set) |
+| GET | `/v1/maps/sample?farm=&lat=&lon=&lang=` | click-sample: elevation + Air Quality + Pollen + Weather APIs. Rate limited. 503 if no Maps key. |
 | GET | `/eyes` | camera stills grid (M3) |
-| GET | `/water` | irrigation zones + run (M5) |
+| GET | `/water` | irrigation zones, pond, Dewline drip pack (M5) |
 | GET | `/klima` | climate + energy (M6) |
 | GET | `/hands` | automations + jobs (M9) |
 | GET | `/frost` | FPS frost console (M4) |
-| GET | `/plan` | build / procurement timeline HTML (time + EUR cents) |
-| GET | `/v1/plan?farm=` | `{ phases, totals }` — amounts are planning envelopes, not quotes |
-| GET | `/v1/trello?farm=` | public Trello lists for `ivan-jovic` (`https://trello.com/b/RCANtF3j/opg-ivan-jovic`). Read-only; no Trello API key. Writes stay on Trello. |
+| GET | `/plan` | build / todos / procurement / calendar HTML |
+| GET | `/v1/plan?farm=` | `{ phases, tasks, orders, where, totals, events }` — EUR cents envelopes, not quotes |
+| GET | `/v1/plan/calendar.ics?farm=` | ICS feed (Google/Apple/Outlook subscribe) |
+| GET | `/v1/trello?farm=` | public Trello lists + card thumbs for `ivan-jovic`. Read-only; no Trello API key. |
 | GET | `/mail` | farm mailbox HTML (**admin session** — redirects to `/login`) |
 | GET | `/ledger` | money ledger HTML (M7; amounts public, writes need admin) |
 | GET | `/v1/ledger` | list entries (`farm`, `from`, `to`, `kind`, `category`, `limit`) |
@@ -80,7 +82,14 @@ HTML pages take optional `?farm=<slug>`. Default is Worker var `DEFAULT_FARM_SLU
 
 | Method | Path | Body |
 |---|---|---|
-| POST | `/v1/plots` | `{ farm_slug, name, hectares?, use_type?, notes? }` |
+| PATCH | `/v1/farms/:slug/extent` | `{ extent_json, extent_name? }` Upserts one location (compat). Prefer `/v1/holdings`. |
+| GET | `/v1/holdings?farm=` | `{ holdings: [{ id, name, geom_json, hectares }] }` |
+| POST | `/v1/holdings` | `{ farm_slug, name, geom_json?, notes? }` New location. Audit `holding.create`. |
+| PATCH | `/v1/holdings/:id` | `{ name?, notes?, geom_json? }` |
+| DELETE | `/v1/holdings/:id` | `{ confirm: true }` Fields stay; `holding_id` cleared. |
+| POST | `/v1/plots` | `{ farm_slug, name, hectares?, use_type?, notes?, geom_json?, holding_id? }` Polygon must sit inside a location when any exist (`400 outside_holding`). `use_type` includes `equipment`. |
+| PATCH | `/v1/plots/:id` | `{ name?, hectares?, use_type?, notes?, geom_json? }` GeoJSON Polygon (lng, lat). Drawn area fills hectares. `geom_json: null` clears the shape **and** hectares. New shape: every vertex must sit inside a location (`400 outside_holding`). Edit of an existing shape: centroid must stay inside. Header `X-Polje-Land` is echoed on live WS so the editing tab ignores its own fan-out. |
+| DELETE | `/v1/plots/:id` | `{ confirm: true }` Removes the field. Fails `409 plot_has_plantings`. Unlinks irrigation zones and growth media. |
 | POST | `/v1/plantings` | `{ plot_id, crop, variety?, planted_on?, stage?, … }` |
 | PATCH | `/v1/plantings/:id` | `{ stage?, yield_kg?, crop?, … }` |
 | POST | `/v1/media` | multipart: `file`, optional `plot_id`, `planting_id`, `caption`, `farm_slug` |
@@ -93,7 +102,7 @@ HTML pages take optional `?farm=<slug>`. Default is Worker var `DEFAULT_FARM_SLU
 | POST | `/v1/ingest` | Bearer `INGEST_TOKEN` | `{ farm_id, batch_id, sent_at, readings[], health? }` → Queue → FarmRuntime DO |
 | GET | `/v1/overview?farm=ivan-jovic` | no | farm + live DO snapshot |
 | GET | `/v1/local/health?farm=ivan-jovic` | no | starlink / edge / last_ingest |
-| WS | `/v1/live?farm=ivan-jovic` | no | live metric events from DO |
+| WS | `/v1/live?farm=ivan-jovic` | no | live metric events from DO, plus `{ type: "land", plot? \| holding?, reload? }` after land writes |
 
 Idempotent on `batch_id` (24h). See `docs/IOT.md` and `docs/LOCAL-SERVERS.md`.
 
@@ -136,6 +145,10 @@ Drip vs frost zone kinds. Edge is write-leader (`valve.open` → MQTT `cmnd` →
 | Method | Path | Auth | Body / notes |
 |---|---|---|---|
 | GET | `/v1/irrigation/zones?farm=` | no | zones + last run + `rain_lockout` + idle/running |
+| GET | `/v1/water/budget?farm=` | no | yearly demand + pond usable m³ (Lonjsko polje analog) |
+| GET | `/v1/water/pack?farm=` | no | Dewline pack: drip lines into `main_flow_m3h`. Frost excluded. Optional `precip_mm` override. Returns slots, peak, tank series, savings (EUR cents). |
+| PATCH | `/v1/water/ponds/:plotId` | operator | `{ depth_m?, bank_slope?, catchment_factor? }` + audit |
+| PATCH | `/v1/water/pump?farm=` | operator | `{ main_flow_m3h?, cycles_per_day?, well_rate_m3h?, water_price_cents? }` + audit. Design only — does not open valves. |
 | POST | `/v1/irrigation/zones/:id/run` | operator | `{ duration_sec (30–3600), reason, confirm? }` → proposal or `202` + command |
 | POST | `/v1/irrigation/rain-lockout?farm=` | operator | `{ enabled, reason, confirm? }` |
 | GET | `/v1/irrigation/schedules?farm=&enabled=` | operator or ingest | Edge polls enabled schedules |
@@ -211,6 +224,11 @@ Integer **cents EUR**; `kind` is the sign. Months are UTC (`substr(ts, 1, 7)`). 
 | POST | `/v1/hero/generate` | operator | `{ confirm: true, reason, farm_slug?, prompt? }` Grok Imagine → R2 `{slug}/hero/still.jpg`. `npm run hero:imagine` also uploads. |
 | POST | `/v1/plan` | operator | `{ title, body?, starts_on?, ends_on?, amount_eur?, status?, sort?, confirm, reason }` audit `plan.create` |
 | PATCH | `/v1/plan/:id` | operator | same fields + `confirm` + `reason` — audit `plan.patch` |
+| POST | `/v1/plan/tasks` | operator | todo `{ title, body?, due_on?, phase_id?, status? }` — no confirm |
+| PATCH | `/v1/plan/tasks/:id` | operator | move kanban status / due date — no confirm |
+| POST | `/v1/plan/orders` | operator | procurement; `ordered`/`received` need `confirm` + `reason` |
+| PATCH | `/v1/plan/orders/:id` | operator | same confirm rule to commit spend |
+| POST | `/v1/plan/research` | operator | `{ query, save? }` Grok web_search from the Worker. `save` writes `status=research` lines |
 
 Worker secret `XAI_API_KEY` required for chat/briefing generation. Missing → 503 `xai_not_configured`.
 
@@ -225,3 +243,9 @@ Dashboard: Grok dock on `/` (Overview).
 | * | `/mcp` | Bearer `AGENT_TOKEN` | Streamable HTTP MCP (Agents SDK v2). See [`docs/MCP.md`](MCP.md). |
 
 `GET /v1/devices?farm=` and `GET /v1/devices/:id/readings` are public read helpers used by agents.
+
+## Agent discovery (M8)
+
+HTTP catalogs live on the Worker (`/.well-known/api-catalog`, `/.well-known/mcp/server-card.json`, `/.well-known/ai-catalog.json`). DNS-AID (RFC 9460 ServiceMode HTTPS/SVCB) is published at `_index._agents.opg-ivanjovic.hr` and `_mcp._agents.opg-ivanjovic.hr` — `alpn`, `port`, `mandatory=alpn,port`, plus experimental `key65400`/`key65401`/`key65402`/`key65409`. Upsert with `npm run dns:aid`.
+
+DNSSEC: Cloudflare already signs the zone. Validating resolvers return `AD` only after the parent **DS** is at CARNet. No A2A record — Polje has no A2A endpoint.

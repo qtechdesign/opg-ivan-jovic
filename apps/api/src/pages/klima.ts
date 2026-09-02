@@ -6,7 +6,6 @@ import {
   shareHead,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { weatherNow } from "../lib/weather";
 
 type AppEnv = { Bindings: Cloudflare.Env };
@@ -33,12 +32,16 @@ export async function renderKlima(c: Context<AppEnv>) {
     pipHtml: `<span class="pip ok">CLIMATE</span>`,
     extraHead: shareHead(c.req.url, "POLJE · Climate", "Old house heat and cool. Solar and battery on the land."),
     extraCss: `
-  .telemetry { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+  .telemetry { width: 100%; max-width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
   .telemetry th, .telemetry td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--hairline); }
   .telemetry th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--spectral-dim); font-weight: 500; font-family: inherit; }
   .telemetry td.num { text-align: right; }
   .lock { color: var(--hay); }
   .lock.alarm { color: var(--alarm); }
+  @media (max-width: 719px) {
+    .telemetry { font-size: 12px; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+    .telemetry th, .telemetry td { padding: 8px 6px; }
+  }
 `,
     solar: wxSkin.solar,
     wx: wxSkin.wx,
@@ -74,7 +77,7 @@ export async function renderKlima(c: Context<AppEnv>) {
         <input id="reason" name="reason" required minlength="3" maxlength="500" data-i18n-placeholder="klima_reason_ph" placeholder="e.g. night in the house" />
         <label class="check"><input type="checkbox" id="confirm" /> confirm: true</label>
         <div class="actions">
-          <button type="submit" class="btn-ghost" data-i18n="klima_set">Set setpoint</button>
+          <button type="submit" class="btn-primary" data-i18n="klima_set">Set setpoint</button>
         </div>
         <div class="msg" id="set-msg"></div>
       </form>
@@ -92,12 +95,10 @@ export async function renderKlima(c: Context<AppEnv>) {
       </table>
     </section>
 
-    ${OPERATOR_GATE_HTML}
-
     <footer data-i18n="klima_footer">Cloud proposes. Edge holds timeout and battery lockout.</footer>
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts()}
   <script>
     const ZONE = ${JSON.stringify(ZONE_ID)};
     function fmt(n, d) {

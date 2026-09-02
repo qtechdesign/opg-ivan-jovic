@@ -22,6 +22,7 @@ These stay on this instance. Never commit them to your fork as if they were your
 | RTSP URLs, camera GPS, bank data | Bible §3 |
 | Mailbox `farm@opg-ivanjovic.hr` | Platform mailbox for this OPG |
 | `OPERATOR_EMAIL` in `wrangler.jsonc` | This operator |
+| Google Analytics `G-9VEBFY7JYD` in `html.ts` / docs `astro.config.mjs` | This site’s traffic. Change or remove in your fork. |
 
 ## Checklist
 
@@ -42,6 +43,7 @@ These stay on this instance. Never commit them to your fork as if they were your
 
    Open `/land?farm=<your-slug>`. Default `/` uses `DEFAULT_FARM_SLUG`.
 7. Bind your own domain later. Public hostnames in this repo stay `opg-ivanjovic.hr` and `docs.opg-ivanjovic.hr`.
+   Publish DNS-AID ServiceMode HTTPS/SVCB at `_index._agents` and `_mcp._agents` (`npm run dns:aid`). Enable Cloudflare DNSSEC, then paste the printed **DS** at your registrar so validating resolvers set `AD`. For this `.hr` instance that is CARNet ([domene.hr](https://www.domene.hr/portal/mydomain/administration)). Do not copy Ivan’s DS or zone id.
 8. Follow the same module order (M0→M10). Do not enable high-risk automations in seed.
 
 `demo-opg` is **local and CI only**. `npm run seed:remote` applies `ivan-jovic` only and refuses `--farm=demo-opg`.

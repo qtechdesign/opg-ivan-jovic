@@ -7,14 +7,20 @@ import {
   SHARE_DESC,
   shareHead,
   siteFooter,
+  TRELLO_LIVE_JS,
 } from "../lib/html";
 import { farmFromRequest } from "../lib/farm";
-import { OPERATOR_GATE_HTML, OPERATOR_SESSION_JS } from "../lib/operator-ui";
 import { weatherNow } from "../lib/weather";
+import { LAND_MAP_JS } from "../lib/land-map-js";
+import { PLOT_USES, plotUseOptionsHtml } from "../lib/plot-uses";
 import { formatEur } from "../lib/money";
 import { heroR2Key, ogR2Key } from "../lib/og";
 import { listBuildPhases, planTotals, type BuildPhase } from "../lib/plan";
 import { IVAN_JOVIC_TRELLO_URL, trelloBoardIdForSlug } from "../lib/trello";
+import {
+  ANALOG_FEEDS,
+  analogThumbUrl,
+} from "../lib/analog-feeds";
 
 type AppEnv = { Bindings: Cloudflare.Env };
 
@@ -23,6 +29,9 @@ type PlotRow = {
   name: string;
   use_type: string | null;
   notes: string | null;
+  hectares: number | null;
+  geom_json: string | null;
+  holding_id: string | null;
 };
 
 type PlantingRow = {
@@ -106,6 +115,12 @@ export async function renderHome(c: Context<AppEnv>) {
             `<a href="${eyesHref}"><img src="/v1/cameras/${escapeHtml(s.camera_id)}/latest" alt="${escapeHtml(s.name)}" /></a>`
         )
         .join("")}</div>`;
+    } else {
+      const eyesHref = farmPath("/eyes", farm.slug, defaultSlug);
+      stillsHtml = `<div class="live-stills">${ANALOG_FEEDS.map(
+        (f) =>
+          `<a href="${eyesHref}"><img src="${escapeHtml(analogThumbUrl(f.youtube_id))}" alt="${escapeHtml(f.title_en)}" /></a>`
+      ).join("")}</div>`;
     }
   }
   const hero = `<div class="hero">${heroInner}<div class="hero-scrim"></div><div class="hero-copy"><h1>${escapeHtml(title)}</h1><p class="sub" data-i18n="${storyKey}">${storyEn}</p></div></div>`;
@@ -161,8 +176,9 @@ export async function renderHome(c: Context<AppEnv>) {
         <div class="metric"><div><span class="n" id="m-edge">—</span><span class="u">seen</span></div><div class="l">Edge</div></div>
       </div>
       <p class="pitch" data-i18n="home_pitch">Polje is the operating system for this family holding: land, water, frost, climate, cameras, and the book. Cloud is the brain and the ledger. The edge on the farm is the muscle and the failsafe. We rebuild OPG Ivan Jović in public so another farm can fork the same stack.</p>
+      <p class="hint" data-i18n="analog_wx_hint">Live numbers are a climate analog from Čigoč / Lonjsko polje (Open-Meteo) until sensors sit on this land. Not private GPS.</p>
     </div>
-    ${stillsHtml ? `<p class="hint" data-i18n="home_live_stills">Live stills</p>${stillsHtml}` : ""}
+    ${stillsHtml ? `<p class="hint" data-i18n="home_live_stills">Analog live views — not this yard yet</p>${stillsHtml}` : ""}
 
     <section class="panel howto">
       <h2 data-i18n="home_why_title">Why this exists</h2>
@@ -225,17 +241,8 @@ export async function renderHome(c: Context<AppEnv>) {
     </p>
     ${siteFooter()}
   </main>
-  <aside id="grok-dock" class="grok-dock" aria-label="Grok">
-    <div class="grok-bar">
-      <span class="grok-label">GROK</span>
-      <span id="grok-brief" class="grok-brief dim"></span>
-      <input id="grok-input" class="admin-only" type="text" autocomplete="off" data-i18n-placeholder="grok_placeholder" placeholder="Ask the farm…" />
-      <button type="button" class="btn-ghost admin-only" id="grok-send" data-i18n="grok_send">Send</button>
-    </div>
-    <pre id="grok-out" class="grok-out" hidden></pre>
-  </aside>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts(TRELLO_LIVE_JS)}
   <script>
     const pip = document.getElementById("starlink-pip");
     const elTemp = document.getElementById("m-temp");
@@ -298,31 +305,6 @@ export async function renderHome(c: Context<AppEnv>) {
     refresh();
     setInterval(refresh, 15000);
 
-    (function trelloLive() {
-      const host = document.getElementById("trello-live");
-      if (!host) return;
-      function esc(s) {
-        return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-      }
-      fetch("/v1/trello?farm=" + encodeURIComponent(FARM))
-        .then((r) => r.json())
-        .then((data) => {
-          const lists = (data.board && data.board.lists) || [];
-          const cols = lists.filter((l) => (l.cards || []).length).slice(0, 4);
-          if (!cols.length) return;
-          host.innerHTML = cols
-            .map((l) => {
-              const cards = (l.cards || [])
-                .slice(0, 6)
-                .map((c) => '<li class="row"><a href="' + esc(c.url) + '" rel="noreferrer">' + esc(c.name) + "</a></li>")
-                .join("");
-              return '<div class="trello-col"><h3>' + esc(l.name) + "</h3><ul>" + cards + "</ul></div>";
-            })
-            .join("");
-        })
-        .catch(() => {});
-    })();
-
     try {
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(proto + "//" + location.host + "/v1/live?farm=" + encodeURIComponent(FARM));
@@ -336,63 +318,6 @@ export async function renderHome(c: Context<AppEnv>) {
       setInterval(() => { if (ws.readyState === 1) ws.send("ping"); }, 25000);
     } catch (e) { console.warn("ws", e); }
 
-    (function grokDock() {
-      const inp = document.getElementById("grok-input");
-      const out = document.getElementById("grok-out");
-      const brief = document.getElementById("grok-brief");
-      const send = document.getElementById("grok-send");
-      if (!inp || !send || !out || !brief) return;
-
-      let lastBriefing = null;
-      function showBriefing(d) {
-        lastBriefing = d;
-        if (d && (d.body_en || d.body_hr)) {
-          const body = LANG === "hr"
-            ? (d.body_hr || d.body_en)
-            : (d.body_en || d.body_hr);
-          brief.textContent = body.slice(0, 120) + (body.length > 120 ? "…" : "");
-          brief.title = (d.body_en || "") + "\\n\\n" + (d.body_hr || "");
-        } else {
-          brief.textContent = t("grok_no_briefing");
-        }
-      }
-      fetch("/v1/grok/briefing/today?farm=" + encodeURIComponent(FARM))
-        .then((r) => r.json())
-        .then((d) => showBriefing(d.briefing || null))
-        .catch(() => { brief.textContent = ""; });
-      document.addEventListener("polje:lang", () => { if (lastBriefing !== undefined) showBriefing(lastBriefing); });
-
-      async function ask() {
-        const message = (inp.value || "").trim();
-        if (!message) return;
-        out.hidden = false;
-        out.textContent = "…";
-        send.disabled = true;
-        try {
-          const res = await fetch("/v1/grok/chat", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ farm_slug: FARM, message }),
-          });
-          const data = await res.json();
-          if (res.status === 401) {
-            out.textContent = t("grok_login");
-          } else if (!res.ok) {
-            out.textContent = data.error || ("HTTP " + res.status);
-          } else {
-            out.textContent = data.reply || t("grok_empty");
-          }
-        } catch (e) {
-          out.textContent = String(e);
-        }
-        send.disabled = false;
-      }
-      send.addEventListener("click", ask);
-      inp.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") ask();
-      });
-    })();
     document.addEventListener("polje:lang", () => {
       if (lastLive) applyLive(lastLive, lastEnergy);
       if (lastIrr) applyWater(lastIrr);
@@ -414,7 +339,7 @@ export async function renderLand(c: Context<AppEnv>) {
   }
 
   const { results: plots } = await c.env.DB.prepare(
-    `SELECT id, name, use_type, notes FROM plots WHERE farm_id = ? ORDER BY name`
+    `SELECT id, name, use_type, notes, hectares, geom_json, holding_id FROM plots WHERE farm_id = ? ORDER BY name`
   )
     .bind(farm.id)
     .all<PlotRow>();
@@ -479,9 +404,19 @@ export async function renderLand(c: Context<AppEnv>) {
                         )}</span></li>`
                     )
                     .join("")}</ul>`;
-            return `<li>
+            const ha =
+              plot.geom_json && plot.hectares != null
+                ? ` · ${plot.hectares} ha`
+                : "";
+            const known = PLOT_USES.some((u) => u.id === plot.use_type);
+            const typeHtml = plot.use_type
+              ? known
+                ? `<span data-i18n="plot_use_${escapeHtml(plot.use_type)}">${escapeHtml(plot.use_type)}</span>`
+                : escapeHtml(plot.use_type)
+              : "—";
+            return `<li class="plot-hit" data-plot-id="${escapeHtml(plot.id)}">
               <div class="row"><span>${escapeHtml(plot.name)}</span>
-              <span class="meta">${escapeHtml(plot.use_type || "—")}</span></div>
+              <span class="meta">${typeHtml}${ha}</span></div>
               ${nest}
             </li>`;
           })
@@ -503,6 +438,7 @@ export async function renderLand(c: Context<AppEnv>) {
       : `<p class="dim" data-i18n="land_no_photos">No growth photos yet.</p>`;
 
   const wxSkin = weatherNow(farm.timezone, null);
+  const mapsKey = String(c.env.GOOGLE_MAPS_API_KEY || "");
   return c.html(`${pageOpen({
     title: "POLJE · Land",
     farmName: farm.name,
@@ -514,6 +450,43 @@ export async function renderLand(c: Context<AppEnv>) {
     extraCss: `
   .nest { margin: 0 0 8px 16px; }
   .status { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--spectral-dim); }
+  .farm-map-wrap { position: relative; margin: 8px 0 0; overflow: hidden; max-width: 100%; overscroll-behavior: contain; }
+  .farm-map { height: min(48dvh, 380px); width: 100%; max-width: 100%; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--void-soft); touch-action: pan-x pan-y; }
+  @media (min-width: 720px) {
+    .farm-map { height: min(62dvh, 640px); }
+  }
+  .map-search-row { display: flex; gap: 8px; margin: 0 0 8px; flex-wrap: wrap; }
+  .map-search-row input { flex: 1; min-width: 0; }
+  .map-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .map-chip { font: inherit; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; padding: 8px 12px; border: 1px solid var(--hairline); background: var(--ghost); color: inherit; cursor: pointer; border-radius: 99px; }
+  .map-chip.is-on { border-color: var(--leaf); color: var(--leaf); }
+  .map-chip.is-empty { opacity: 0.55; border-style: dashed; }
+  .map-chip-hold { border-style: dashed; letter-spacing: 0.06em; }
+  .map-chip-hold.is-on { border-color: var(--paper, #f4f1e8); color: inherit; }
+  .map-search-row .btn-ghost[hidden] { display: none !important; }
+  .plot-label-hold { background: rgba(16,18,24,0.72); color: #f4f1e8 !important; }
+  .map-total { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--spectral-dim); margin: 0 0 8px; }
+  .map-new { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .map-new[hidden] { display: none !important; }
+  .map-new input, .map-new select { flex: 1; min-width: 8rem; }
+  .plot-hit { cursor: pointer; border-radius: var(--radius); }
+  .plot-hit.is-on { outline: 1px solid var(--leaf); }
+  .map-card a { color: inherit; }
+  .map-toast { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; margin: 0; padding: 8px 10px; background: color-mix(in oklab, var(--void) 92%, transparent); border-radius: var(--radius); }
+  .map-toast[hidden] { display: none !important; }
+  .plot-label { background: rgba(255,255,255,0.92); padding: 2px 7px; border-radius: 2px; }
+  .map-card { font: inherit; min-width: 0; max-width: min(240px, 70vw); }
+  .map-card-del { margin-top: 8px; font: inherit; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .map-chip-new { border-style: dashed; }
+  .map-search-row .btn-ghost.is-on { border-color: var(--leaf); color: var(--leaf); }
+  .land-book { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .land-book th, .land-book td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--hairline); }
+  .land-book th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--spectral-dim); }
+  .land-book-row { cursor: pointer; }
+  .land-book-row.is-on td { color: var(--leaf); }
+  .land-book-hold td { color: var(--spectral-dim); }
+  .map-tools { position: absolute; left: 8px; top: 8px; z-index: 6; display: flex; flex-wrap: wrap; gap: 6px; }
+  .map-tools .btn-ghost, .map-tools .btn-primary { padding: 6px 10px; font-size: 11px; }
 `,
     solar: wxSkin.solar,
     wx: wxSkin.wx,
@@ -523,8 +496,54 @@ export async function renderLand(c: Context<AppEnv>) {
     <p class="sub"><span data-i18n="land_plots">Plots and plantings</span> · ${escapeHtml(farm.name)}</p>
     <p class="hint" data-i18n="land_howto">Plots and plantings are the land ledger. Viewing is open. Sign in to add a plot, planting, stage, or growth photo.</p>
 
-    ${OPERATOR_GATE_HTML}
+    <section class="panel">
+      <h2 data-i18n="land_map">Fields</h2>
+      <p class="hint" data-i18n="land_map_howto">First draw each location you farm (e.g. Sarampovo). Then pasture, orchard, hay, pond, equipment only inside that line. Tap a shape: Adjust corners, or Move to drag the whole field. While drawing, tap once per corner — a drag pans the map.</p>
+      <div class="map-search-row no-print">
+        <input id="map-search" type="search" autocomplete="off" data-i18n-placeholder="land_map_search_ph" placeholder="Town or field…" />
+        <button type="button" class="btn-ghost" id="map-go" data-i18n="land_map_go">Go</button>
+        <button type="button" class="btn-ghost admin-only" id="map-holding" data-i18n="land_map_holding">New location</button>
+        <button type="button" class="btn-ghost admin-only" id="map-draw" data-i18n="land_map_draw">Draw field</button>
+        <button type="button" class="btn-ghost admin-only" id="map-pond" data-i18n="land_map_pond">Place pond</button>
+        <button type="button" class="btn-ghost admin-only" id="map-equip" data-i18n="land_map_equip">Place equipment</button>
+        <button type="button" class="btn-ghost admin-only" id="map-edit" data-i18n="land_map_edit">Adjust corners</button>
+        <button type="button" class="btn-ghost admin-only" id="map-move" data-i18n="land_map_move">Move</button>
+      </div>
+      <p class="map-total no-print" id="map-total"></p>
+      <div id="map-chips" class="map-chips no-print"></div>
+      <div id="map-new" class="map-new no-print" hidden>
+        <input id="map-new-name" maxlength="120" data-i18n-placeholder="land_name" placeholder="Name" />
+        <select id="map-new-use">${plotUseOptionsHtml("garden")}</select>
+        <button type="button" class="btn-primary" id="map-new-save" data-i18n="land_save_plot">Save plot</button>
+      </div>
+      <div class="farm-map-wrap">
+        <div class="map-tools no-print admin-only">
+          <button type="button" class="btn-primary" id="map-done" hidden data-i18n="land_map_done">Done</button>
+          <button type="button" class="btn-ghost" id="map-undo" hidden data-i18n="land_map_undo">Undo corner</button>
+          <button type="button" class="btn-ghost" id="map-cancel" hidden data-i18n="land_map_cancel">Cancel</button>
+        </div>
+        <div id="farm-map" class="farm-map" data-farm-name="${escapeHtml(farm.name)}" data-lat="${farm.lat ?? ""}" data-lon="${farm.lon ?? ""}" data-maps-key="${escapeHtml(mapsKey)}"></div>
+        <div class="map-toast msg" id="map-msg" hidden></div>
+      </div>
+    </section>
 
+    <section class="panel">
+      <h2 data-i18n="land_book">Where things sit</h2>
+      <p class="hint" data-i18n="land_book_hint">Each location, then the fields, ponds, and equipment drawn inside it.</p>
+      <div style="overflow-x:auto">
+        <table class="land-book">
+          <thead>
+            <tr>
+              <th data-i18n="land_book_loc">Location</th>
+              <th data-i18n="land_name">Name</th>
+              <th data-i18n="land_type">Type</th>
+              <th data-i18n="land_hectares">Hectares</th>
+            </tr>
+          </thead>
+          <tbody id="land-book-body"></tbody>
+        </table>
+      </div>
+    </section>
 
     <section class="panel">
       <h2 data-i18n="land_plots">Plots and plantings</h2>
@@ -540,13 +559,7 @@ export async function renderLand(c: Context<AppEnv>) {
           <div>
             <label for="plot-use" data-i18n="land_type">Type</label>
             <select id="plot-use" name="use_type">
-              <option value="yard">yard</option>
-              <option value="hay">hay</option>
-              <option value="pasture">pasture</option>
-              <option value="garden">garden</option>
-              <option value="orchard">orchard</option>
-              <option value="greenhouse">greenhouse</option>
-              <option value="other">other</option>
+              ${plotUseOptionsHtml("garden")}
             </select>
           </div>
           <div>
@@ -556,7 +569,7 @@ export async function renderLand(c: Context<AppEnv>) {
         </div>
         <label for="plot-notes" data-i18n="land_notes">Notes</label>
         <textarea id="plot-notes" name="notes" maxlength="2000"></textarea>
-        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="land_save_plot">Save plot</button></div>
+        <div class="actions"><button class="btn-primary" type="submit" data-i18n="land_save_plot">Save plot</button></div>
         <div class="msg" id="plot-msg"></div>
       </form>
     </section>
@@ -592,7 +605,7 @@ export async function renderLand(c: Context<AppEnv>) {
             <input id="plant-on" name="planted_on" placeholder="2026-08-31" />
           </div>
         </div>
-        <div class="actions"><button class="btn-ghost" type="submit" data-i18n="land_save_planting">Save planting</button></div>
+        <div class="actions"><button class="btn-primary" type="submit" data-i18n="land_save_planting">Save planting</button></div>
         <div class="msg" id="plant-msg"></div>
       </form>
     </section>
@@ -643,7 +656,7 @@ export async function renderLand(c: Context<AppEnv>) {
     ${siteFooter()}
   </main>
   </div>
-  ${bootScripts(OPERATOR_SESSION_JS)}
+  ${bootScripts(LAND_MAP_JS)}
   <script>
     function jsonHeaders() {
       return { "Content-Type": "application/json" };

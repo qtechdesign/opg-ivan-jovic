@@ -14,7 +14,7 @@ export default defineWorkersConfig({
             OPERATOR_EMAIL: "info@qtech.hr",
             OPERATOR_PASSWORD: "test-operator-password",
             INGEST_TOKEN: "test-ingest-token",
-            AGENT_TOKEN: "test-agent-token",
+            ANALOG_LIVE: "0",
           },
         },
       },

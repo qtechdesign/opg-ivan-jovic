@@ -12,6 +12,7 @@ declare namespace Cloudflare {
 		OPERATOR_PASSWORD: string;
 		AGENT_TOKEN: string;
 		XAI_API_KEY: string;
+		GOOGLE_MAPS_API_KEY?: string;
 		FARM: DurableObjectNamespace<import("./apps/api/src/index").FarmRuntime>;
 		MEDIA: R2Bucket;
 		DB: D1Database;
@@ -25,7 +26,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SERVICE_NAME" | "DEFAULT_FARM_SLUG" | "INGEST_TOKEN" | "OPERATOR_TOKEN" | "OPERATOR_EMAIL" | "OPERATOR_PASSWORD" | "AGENT_TOKEN" | "XAI_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SERVICE_NAME" | "DEFAULT_FARM_SLUG" | "INGEST_TOKEN" | "OPERATOR_TOKEN" | "OPERATOR_EMAIL" | "OPERATOR_PASSWORD" | "AGENT_TOKEN" | "XAI_API_KEY" | "GOOGLE_MAPS_API_KEY">> {}
 }
 declare module "*.woff2" {
 	const value: ArrayBuffer;
